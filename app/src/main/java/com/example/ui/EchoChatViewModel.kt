@@ -6,6 +6,8 @@ import androidx.lifecycle.viewModelScope
 import com.example.data.local.EchoDatabase
 import com.example.data.model.ChannelEntity
 import com.example.data.model.MessageEntity
+import com.example.data.model.PostEntity
+import com.example.data.model.StoryEntity
 import com.example.data.model.UserProfileEntity
 import com.example.data.repository.EchoChatRepository
 import com.example.util.AppLanguage
@@ -16,7 +18,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
-import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -36,6 +37,23 @@ class EchoChatViewModel(application: Application) : AndroidViewModel(application
     val userProfile: StateFlow<UserProfileEntity?> = repository.userProfile
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
+    val posts: StateFlow<List<PostEntity>> = repository.allPosts
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val savedPosts: StateFlow<List<PostEntity>> = repository.savedPosts
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val stories: StateFlow<List<StoryEntity>> = repository.allStories
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    // Bottom Navigation Tab: 0 = Chats, 1 = Explore, 2 = Saved, 3 = Profile
+    private val _currentMainTab = MutableStateFlow(0)
+    val currentMainTab: StateFlow<Int> = _currentMainTab.asStateFlow()
+
+    // Explore Category Filter: "all", "trending", "tech", "design", "ai"
+    private val _selectedExploreCategory = MutableStateFlow("all")
+    val selectedExploreCategory: StateFlow<String> = _selectedExploreCategory.asStateFlow()
+
     private val _selectedChannelId = MutableStateFlow("general")
     val selectedChannelId: StateFlow<String> = _selectedChannelId.asStateFlow()
 
@@ -51,8 +69,8 @@ class EchoChatViewModel(application: Application) : AndroidViewModel(application
     private val _isSearchActive = MutableStateFlow(false)
     val isSearchActive: StateFlow<Boolean> = _isSearchActive.asStateFlow()
 
-    private val _activeTab = MutableStateFlow(0) // 0: All/Chats, 1: Channels, 2: DMs, 3: Settings
-    val activeTab: StateFlow<Int> = _activeTab.asStateFlow()
+    private val _activeChatCategoryTab = MutableStateFlow(0) // 0: All, 1: Channels, 2: DMs
+    val activeChatCategoryTab: StateFlow<Int> = _activeChatCategoryTab.asStateFlow()
 
     private val _replyingTo = MutableStateFlow<MessageEntity?>(null)
     val replyingTo: StateFlow<MessageEntity?> = _replyingTo.asStateFlow()
@@ -75,11 +93,11 @@ class EchoChatViewModel(application: Application) : AndroidViewModel(application
         statusMap[currentId]
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
-    // Filtered channels based on search and tab
+    // Filtered channels based on search and chat category tab
     val filteredChannels: StateFlow<List<ChannelEntity>> = combine(
         channels,
         _searchQuery,
-        _activeTab
+        _activeChatCategoryTab
     ) { allChannels, query, tab ->
         var list = allChannels
         if (tab == 1) {
@@ -98,6 +116,39 @@ class EchoChatViewModel(application: Application) : AndroidViewModel(application
         list
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    // Filtered posts based on explore category and search query
+    val filteredPosts: StateFlow<List<PostEntity>> = combine(
+        posts,
+        _selectedExploreCategory,
+        _searchQuery
+    ) { allPosts, category, query ->
+        var list = allPosts
+        if (category != "all") {
+            list = if (category == "trending") {
+                list.sortedByDescending { it.likesCount }
+            } else {
+                list.filter { it.category == category }
+            }
+        }
+
+        if (query.isNotBlank()) {
+            list = list.filter {
+                it.content.contains(query, ignoreCase = true) ||
+                it.authorName.contains(query, ignoreCase = true) ||
+                it.tags.contains(query, ignoreCase = true)
+            }
+        }
+        list
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    fun setMainTab(tab: Int) {
+        _currentMainTab.value = tab
+    }
+
+    fun setExploreCategory(category: String) {
+        _selectedExploreCategory.value = category
+    }
+
     fun selectChannel(channelId: String) {
         _selectedChannelId.value = channelId
         _replyingTo.value = null
@@ -115,8 +166,8 @@ class EchoChatViewModel(application: Application) : AndroidViewModel(application
         if (!active) _searchQuery.value = ""
     }
 
-    fun setActiveTab(tab: Int) {
-        _activeTab.value = tab
+    fun setActiveChatCategoryTab(tab: Int) {
+        _activeChatCategoryTab.value = tab
     }
 
     fun setReplyingTo(message: MessageEntity?) {
@@ -166,6 +217,37 @@ class EchoChatViewModel(application: Application) : AndroidViewModel(application
     fun startDirectMessage(peerName: String) {
         viewModelScope.launch {
             repository.startDirectMessage(peerName)
+        }
+    }
+
+    // --- Social Actions ---
+    fun createPost(content: String, tags: String, category: String) {
+        viewModelScope.launch {
+            repository.createPost(content, tags, category)
+        }
+    }
+
+    fun toggleLikePost(postId: String, currentLiked: Boolean, currentCount: Int) {
+        viewModelScope.launch {
+            repository.toggleLikePost(postId, currentLiked, currentCount)
+        }
+    }
+
+    fun toggleBookmarkPost(postId: String, currentBookmarked: Boolean) {
+        viewModelScope.launch {
+            repository.toggleBookmarkPost(postId, currentBookmarked)
+        }
+    }
+
+    fun deletePost(postId: String) {
+        viewModelScope.launch {
+            repository.deletePost(postId)
+        }
+    }
+
+    fun markStoryViewed(storyId: String) {
+        viewModelScope.launch {
+            repository.markStoryViewed(storyId)
         }
     }
 

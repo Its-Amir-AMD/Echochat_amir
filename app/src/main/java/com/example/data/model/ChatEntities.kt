@@ -38,8 +38,40 @@ data class MessageEntity(
 data class UserProfileEntity(
     @PrimaryKey val userId: String = "me",
     val displayName: String = "کاربر اکو / Echo User",
-    val bio: String = "علاقه‌مند به تکنولوژی و گفتگوی آنلاین 🚀",
+    val bio: String = "علاقه‌مند به تکنولوژی، هوش مصنوعی و ارتباطات مدرن 🚀",
     val avatarColor: Long = 0xFF4F46E5,
     val languageCode: String = "fa",
-    val isDarkMode: Boolean? = null
+    val isDarkMode: Boolean? = null,
+    val postsCount: Int = 8,
+    val followersCount: Int = 1420,
+    val followingCount: Int = 385
+)
+
+@Entity(tableName = "social_posts")
+data class PostEntity(
+    @PrimaryKey val id: String,
+    val authorId: String,
+    val authorName: String,
+    val authorRole: String = "عضو اکو / Echo Member",
+    val authorAvatarColor: Long = 0xFF4F46E5,
+    val content: String,
+    val tags: String = "", // comma-separated e.g. "کاتلین,اندروید"
+    val category: String = "tech", // "trending", "tech", "design", "ai"
+    val likesCount: Int = 0,
+    val commentsCount: Int = 0,
+    val sharesCount: Int = 0,
+    val isLiked: Boolean = false,
+    val isBookmarked: Boolean = false,
+    val timestamp: Long = System.currentTimeMillis(),
+    val cardColor: Long = 0xFF1E293B
+)
+
+@Entity(tableName = "user_stories")
+data class StoryEntity(
+    @PrimaryKey val id: String,
+    val authorName: String,
+    val authorAvatarColor: Long = 0xFF4F46E5,
+    val storyTitle: String,
+    val isViewed: Boolean = false,
+    val timestamp: Long = System.currentTimeMillis()
 )

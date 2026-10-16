@@ -7,6 +7,8 @@ import androidx.room.RoomDatabase
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.example.data.model.ChannelEntity
 import com.example.data.model.MessageEntity
+import com.example.data.model.PostEntity
+import com.example.data.model.StoryEntity
 import com.example.data.model.UserProfileEntity
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -14,8 +16,14 @@ import kotlinx.coroutines.launch
 import java.util.UUID
 
 @Database(
-    entities = [ChannelEntity::class, MessageEntity::class, UserProfileEntity::class],
-    version = 1,
+    entities = [
+        ChannelEntity::class,
+        MessageEntity::class,
+        UserProfileEntity::class,
+        PostEntity::class,
+        StoryEntity::class
+    ],
+    version = 2,
     exportSchema = false
 )
 abstract class EchoDatabase : RoomDatabase() {
@@ -52,6 +60,7 @@ abstract class EchoDatabase : RoomDatabase() {
         private suspend fun seedInitialData(dao: EchoChatDao) {
             val now = System.currentTimeMillis()
 
+            // Seed Channels
             val defaultChannels = listOf(
                 ChannelEntity(
                     id = "general",
@@ -110,6 +119,7 @@ abstract class EchoDatabase : RoomDatabase() {
             )
             dao.insertChannels(defaultChannels)
 
+            // Seed Messages
             val seedMessages = listOf(
                 MessageEntity(
                     id = UUID.randomUUID().toString(),
@@ -180,13 +190,127 @@ abstract class EchoDatabase : RoomDatabase() {
             )
             dao.insertMessages(seedMessages)
 
+            // Seed Stories
+            val seedStories = listOf(
+                StoryEntity(
+                    id = "story_1",
+                    authorName = "دستیار اکو",
+                    authorAvatarColor = 0xFF6366F1,
+                    storyTitle = "امکانات جدید نسخه ۲.۰ منتشر شد! 🚀",
+                    isViewed = false,
+                    timestamp = now - 60000 * 20
+                ),
+                StoryEntity(
+                    id = "story_2",
+                    authorName = "سارا احمدی",
+                    authorAvatarColor = 0xFFEC4899,
+                    storyTitle = "پالت رنگی نئومورفیک ایندیگو 🎨",
+                    isViewed = false,
+                    timestamp = now - 60000 * 45
+                ),
+                StoryEntity(
+                    id = "story_3",
+                    authorName = "علی راد",
+                    authorAvatarColor = 0xFF10B981,
+                    storyTitle = "توسعه کاتلین با معماری تمیز",
+                    isViewed = true,
+                    timestamp = now - 60000 * 90
+                ),
+                StoryEntity(
+                    id = "story_4",
+                    authorName = "مونا فرهمند",
+                    authorAvatarColor = 0xFFF59E0B,
+                    storyTitle = "تحقیقات کاربری بخش اکسپلور",
+                    isViewed = false,
+                    timestamp = now - 60000 * 150
+                )
+            )
+            dao.insertStories(seedStories)
+
+            // Seed Social Posts
+            val seedPosts = listOf(
+                PostEntity(
+                    id = "post_1",
+                    authorId = "user_ali",
+                    authorName = "علی راد",
+                    authorRole = "توسعه‌دهنده ارشد اندروید 📱",
+                    authorAvatarColor = 0xFF10B981,
+                    content = "ترکیب Jetpack Compose با معماری MVI یا MVVM باعث میشه جریان‌های داده خیلی روان‌تر بشن. توی اکو چت همه چیز به شکل ری‌اکتیو با StateFlow و Room مدیریت میشه که زمان پاسخ‌دهی رو به حداقل رسونده!",
+                    tags = "کاتلین,اندروید,کامپوز",
+                    category = "tech",
+                    likesCount = 142,
+                    commentsCount = 28,
+                    sharesCount = 15,
+                    isLiked = true,
+                    isBookmarked = false,
+                    timestamp = now - 60000 * 35,
+                    cardColor = 0xFF1E293B
+                ),
+                PostEntity(
+                    id = "post_2",
+                    authorId = "user_sara",
+                    authorName = "سارا احمدی",
+                    authorRole = "طراح رابط و تجربه کاربری (UI/UX) 🎨",
+                    authorAvatarColor = 0xFFEC4899,
+                    content = "طراحی برای زبان‌های راست‌به‌چپ (RTL) نیازمند توجه به تقارن معکوس، انحنای حباب‌های چت و آیکون‌های متقارن هست. در طراحی جدید اکو، با یک کلیک چیدمان کاملاً برعکس و استاندارد میشه!",
+                    tags = "دیزاین,RTL,ماتریال۳",
+                    category = "design",
+                    likesCount = 219,
+                    commentsCount = 45,
+                    sharesCount = 38,
+                    isLiked = false,
+                    isBookmarked = true,
+                    timestamp = now - 60000 * 110,
+                    cardColor = 0xFF2E1065
+                ),
+                PostEntity(
+                    id = "post_3",
+                    authorId = "user_ai",
+                    authorName = "دستیار هوشمند اکو",
+                    authorRole = "هوش مصنوعی و پردازش زبان طبیعی 🤖",
+                    authorAvatarColor = 0xFF6366F1,
+                    content = "آینده شبکه‌های اجتماعی و پیام‌رسان‌ها در تعامل هوشمند محتوا نهفته است. سیستم اکو پیام‌ها رو درک می‌کنه، پیشنهاد پاسخ میده و محتوای اکسپلور رو با توجه به علایق شما دسته‌بندی می‌کنه.",
+                    tags = "هوش_مصنوعی,اکو,ترند",
+                    category = "ai",
+                    likesCount = 380,
+                    commentsCount = 64,
+                    sharesCount = 82,
+                    isLiked = true,
+                    isBookmarked = true,
+                    timestamp = now - 60000 * 240,
+                    cardColor = 0xFF1E1B4B
+                ),
+                PostEntity(
+                    id = "post_4",
+                    authorId = "user_reza",
+                    authorName = "رضا کاظمی",
+                    authorRole = "معمار نرم‌افزار 💻",
+                    authorAvatarColor = 0xFF3B82F6,
+                    content = "سرعت بیلد در Gradle با KSP و کاتلین ۲.۰ جهش چشمگیری داشته. دیگه نیازی به منتظر موندن‌های طولانی kapt نیست و تست‌های محلی در چند میلی‌ثانیه اجرا میشن.",
+                    tags = "تکنولوژی,گریدل,سرعت",
+                    category = "tech",
+                    likesCount = 98,
+                    commentsCount = 12,
+                    sharesCount = 7,
+                    isLiked = false,
+                    isBookmarked = false,
+                    timestamp = now - 60000 * 480,
+                    cardColor = 0xFF0F172A
+                )
+            )
+            dao.insertPosts(seedPosts)
+
+            // Seed User Profile
             dao.insertOrUpdateProfile(
                 UserProfileEntity(
                     userId = "me",
                     displayName = "کاربر اکو چت",
-                    bio = "علاقه‌مند به دنیای چت و ارتباطات هوشمند ✨",
+                    bio = "علاقه‌مند به دنیای چت، سوشال مدیا و ارتباطات هوشمند ✨",
                     avatarColor = 0xFF4F46E5,
-                    languageCode = "fa"
+                    languageCode = "fa",
+                    postsCount = 4,
+                    followersCount = 1250,
+                    followingCount = 340
                 )
             )
         }

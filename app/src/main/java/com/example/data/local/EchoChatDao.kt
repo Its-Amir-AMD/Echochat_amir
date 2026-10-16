@@ -4,9 +4,10 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
-import androidx.room.Update
 import com.example.data.model.ChannelEntity
 import com.example.data.model.MessageEntity
+import com.example.data.model.PostEntity
+import com.example.data.model.StoryEntity
 import com.example.data.model.UserProfileEntity
 import kotlinx.coroutines.flow.Flow
 
@@ -56,6 +57,41 @@ interface EchoChatDao {
 
     @Query("SELECT * FROM messages WHERE content LIKE '%' || :query || '%' ORDER BY timestamp DESC")
     fun searchMessages(query: String): Flow<List<MessageEntity>>
+
+    // --- Social Posts ---
+    @Query("SELECT * FROM social_posts ORDER BY timestamp DESC")
+    fun getAllPosts(): Flow<List<PostEntity>>
+
+    @Query("SELECT * FROM social_posts WHERE isBookmarked = 1 ORDER BY timestamp DESC")
+    fun getSavedPosts(): Flow<List<PostEntity>>
+
+    @Query("SELECT * FROM social_posts WHERE category = :category ORDER BY timestamp DESC")
+    fun getPostsByCategory(category: String): Flow<List<PostEntity>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertPost(post: PostEntity)
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertPosts(posts: List<PostEntity>)
+
+    @Query("UPDATE social_posts SET isLiked = :isLiked, likesCount = :likesCount WHERE id = :postId")
+    suspend fun updatePostLike(postId: String, isLiked: Boolean, likesCount: Int)
+
+    @Query("UPDATE social_posts SET isBookmarked = :isBookmarked WHERE id = :postId")
+    suspend fun updatePostBookmark(postId: String, isBookmarked: Boolean)
+
+    @Query("DELETE FROM social_posts WHERE id = :postId")
+    suspend fun deletePost(postId: String)
+
+    // --- Stories ---
+    @Query("SELECT * FROM user_stories ORDER BY timestamp DESC")
+    fun getAllStories(): Flow<List<StoryEntity>>
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertStories(stories: List<StoryEntity>)
+
+    @Query("UPDATE user_stories SET isViewed = 1 WHERE id = :storyId")
+    suspend fun markStoryViewed(storyId: String)
 
     // --- Profile ---
     @Query("SELECT * FROM user_profile WHERE userId = 'me' LIMIT 1")

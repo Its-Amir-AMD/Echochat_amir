@@ -16,13 +16,16 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -31,18 +34,20 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Bookmark
+import androidx.compose.material.icons.filled.BookmarkBorder
 import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.ClearAll
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DarkMode
+import androidx.compose.material.icons.filled.DynamicFeed
+import androidx.compose.material.icons.filled.Explore
 import androidx.compose.material.icons.filled.Forum
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material3.Badge
-import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
@@ -112,13 +117,22 @@ fun MainScreen(
     val isDarkMode by viewModel.isDarkMode.collectAsStateWithLifecycle()
     val isSearchActive by viewModel.isSearchActive.collectAsStateWithLifecycle()
     val searchQuery by viewModel.searchQuery.collectAsStateWithLifecycle()
-    val activeTab by viewModel.activeTab.collectAsStateWithLifecycle()
+    val activeChatCategoryTab by viewModel.activeChatCategoryTab.collectAsStateWithLifecycle()
     val replyingTo by viewModel.replyingTo.collectAsStateWithLifecycle()
     val typingUser by viewModel.typingUser.collectAsStateWithLifecycle()
     val userProfile by viewModel.userProfile.collectAsStateWithLifecycle()
 
+    // Social & Explore state
+    val currentMainTab by viewModel.currentMainTab.collectAsStateWithLifecycle()
+    val stories by viewModel.stories.collectAsStateWithLifecycle()
+    val filteredPosts by viewModel.filteredPosts.collectAsStateWithLifecycle()
+    val savedPosts by viewModel.savedPosts.collectAsStateWithLifecycle()
+    val selectedExploreCategory by viewModel.selectedExploreCategory.collectAsStateWithLifecycle()
+    val allPosts by viewModel.posts.collectAsStateWithLifecycle()
+
     var showCreateChannelDialog by remember { mutableStateOf(false) }
     var showStartDmDialog by remember { mutableStateOf(false) }
+    var showCreatePostDialog by remember { mutableStateOf(false) }
     var showProfileSheet by remember { mutableStateOf(false) }
     var showOptionsMenu by remember { mutableStateOf(false) }
     var inputText by remember { mutableStateOf("") }
@@ -129,24 +143,25 @@ fun MainScreen(
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val coroutineScope = rememberCoroutineScope()
 
-    // Handle Android system Back button on compact screens when inside chat room
+    // Handle system back on compact screen when inside a chat
     BackHandler(enabled = isViewingChatRoomOnCompact) {
         isViewingChatRoomOnCompact = false
     }
 
     BoxWithConstraints(modifier = modifier.fillMaxSize()) {
-        val isWideScreen = maxWidth >= 700.dp
+        val isWideScreen = maxWidth >= 760.dp
 
         Scaffold(
             topBar = {
                 EchoTopAppBar(
-                    activeChannel = if (isWideScreen || isViewingChatRoomOnCompact) activeChannel else null,
+                    activeChannel = if ((isWideScreen || isViewingChatRoomOnCompact) && currentMainTab == 0) activeChannel else null,
                     currentLanguage = currentLanguage,
                     isDarkMode = isDarkMode,
                     isSearchActive = isSearchActive,
                     searchQuery = searchQuery,
                     userAvatarColor = userProfile?.avatarColor ?: 0xFF4F46E5,
                     userName = userProfile?.displayName ?: "Echo",
+                    mainTab = currentMainTab,
                     onBackClick = { isViewingChatRoomOnCompact = false },
                     onToggleLanguage = { viewModel.toggleLanguage() },
                     onToggleTheme = { viewModel.toggleTheme() },
@@ -154,143 +169,275 @@ fun MainScreen(
                     onSearchQueryChange = { viewModel.setSearchQuery(it) },
                     onCloseSearch = { viewModel.toggleSearch(false) },
                     onOpenProfile = { showProfileSheet = true },
-                    onOpenMenu = { showOptionsMenu = true },
                     onClearChat = { viewModel.clearChat() }
                 )
             },
+            bottomBar = {
+                // Show bottom nav on compact screens when NOT currently inside an active chat conversation
+                if (!isViewingChatRoomOnCompact && !isWideScreen) {
+                    EchoBottomNavigationBar(
+                        currentTab = currentMainTab,
+                        language = currentLanguage,
+                        onTabSelect = { tabIndex ->
+                            viewModel.setMainTab(tabIndex)
+                        }
+                    )
+                }
+            },
             floatingActionButton = {
                 if (!isViewingChatRoomOnCompact || isWideScreen) {
-                    FloatingActionButton(
-                        onClick = { showCreateChannelDialog = true },
-                        containerColor = MaterialTheme.colorScheme.primary,
-                        contentColor = Color.White,
-                        modifier = Modifier.testTag("create_channel_fab")
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Add,
-                            contentDescription = EchoStrings.get("new_channel", currentLanguage)
-                        )
+                    if (currentMainTab == 0) {
+                        FloatingActionButton(
+                            onClick = { showCreateChannelDialog = true },
+                            containerColor = MaterialTheme.colorScheme.primary,
+                            contentColor = Color.White,
+                            modifier = Modifier.testTag("create_channel_fab")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Add,
+                                contentDescription = EchoStrings.get("new_channel", currentLanguage)
+                            )
+                        }
+                    } else if (currentMainTab == 1) {
+                        FloatingActionButton(
+                            onClick = { showCreatePostDialog = true },
+                            containerColor = MaterialTheme.colorScheme.primary,
+                            contentColor = Color.White,
+                            modifier = Modifier.testTag("create_post_fab")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Add,
+                                contentDescription = EchoStrings.get("create_post", currentLanguage)
+                            )
+                        }
                     }
                 }
             }
         ) { paddingValues ->
             if (isWideScreen) {
-                // Wide Screen: Dual Panel List-Detail
+                // Wide Screen: Navigation Rail on the left + Content Area
                 Row(
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(paddingValues)
                 ) {
-                    // Left Panel: Channel List
-                    Column(
-                        modifier = Modifier
-                            .width(340.dp)
-                            .fillMaxHeight()
-                            .background(MaterialTheme.colorScheme.surface)
+                    NavigationRail(
+                        containerColor = MaterialTheme.colorScheme.surface,
+                        contentColor = MaterialTheme.colorScheme.onSurface
                     ) {
-                        CategoryTabs(
-                            activeTab = activeTab,
-                            language = currentLanguage,
-                            onTabSelected = { viewModel.setActiveTab(it) }
+                        NavigationRailItem(
+                            selected = currentMainTab == 0,
+                            onClick = { viewModel.setMainTab(0) },
+                            icon = { Icon(Icons.Default.Forum, contentDescription = null) },
+                            label = { Text(EchoStrings.get("nav_chats", currentLanguage)) }
                         )
-
-                        ChannelListContent(
-                            channels = channels,
-                            selectedChannelId = selectedChannelId,
-                            language = currentLanguage,
-                            onChannelSelected = { channelId ->
-                                viewModel.selectChannel(channelId)
-                            },
-                            onNewDmClick = { showStartDmDialog = true }
+                        NavigationRailItem(
+                            selected = currentMainTab == 1,
+                            onClick = { viewModel.setMainTab(1) },
+                            icon = { Icon(Icons.Default.Explore, contentDescription = null) },
+                            label = { Text(EchoStrings.get("nav_explore", currentLanguage)) }
+                        )
+                        NavigationRailItem(
+                            selected = currentMainTab == 2,
+                            onClick = { viewModel.setMainTab(2) },
+                            icon = { Icon(Icons.Default.Bookmark, contentDescription = null) },
+                            label = { Text(EchoStrings.get("nav_saved", currentLanguage)) }
+                        )
+                        NavigationRailItem(
+                            selected = currentMainTab == 3,
+                            onClick = { viewModel.setMainTab(3) },
+                            icon = { Icon(Icons.Default.Person, contentDescription = null) },
+                            label = { Text(EchoStrings.get("nav_profile", currentLanguage)) }
                         )
                     }
 
-                    // Divider
-                    Box(
-                        modifier = Modifier
-                            .width(1.dp)
-                            .fillMaxHeight()
-                            .background(MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
-                    )
+                    // Content for Selected Main Tab
+                    when (currentMainTab) {
+                        0 -> {
+                            // Dual Panel Messenger
+                            Row(modifier = Modifier.fillMaxSize()) {
+                                Column(
+                                    modifier = Modifier
+                                        .width(320.dp)
+                                        .fillMaxHeight()
+                                        .background(MaterialTheme.colorScheme.surface)
+                                ) {
+                                    CategoryTabs(
+                                        activeTab = activeChatCategoryTab,
+                                        language = currentLanguage,
+                                        onTabSelected = { viewModel.setActiveChatCategoryTab(it) }
+                                    )
+                                    ChannelListContent(
+                                        channels = channels,
+                                        selectedChannelId = selectedChannelId,
+                                        language = currentLanguage,
+                                        onChannelSelected = { viewModel.selectChannel(it) },
+                                        onNewDmClick = { showStartDmDialog = true }
+                                    )
+                                }
 
-                    // Right Panel: Active Chat Room
-                    Box(modifier = Modifier.weight(1f)) {
-                        ChatRoomContent(
-                            activeChannel = activeChannel,
-                            messages = messages,
-                            typingUser = typingUser,
-                            inputText = inputText,
-                            replyingTo = replyingTo,
-                            language = currentLanguage,
-                            onTextChanged = { inputText = it },
-                            onSendMessage = {
-                                viewModel.sendMessage(inputText)
-                                inputText = ""
-                            },
-                            onReply = { viewModel.setReplyingTo(it) },
-                            onCancelReply = { viewModel.setReplyingTo(null) },
-                            onDelete = { viewModel.deleteMessage(it) },
-                            onReact = { id, emoji -> viewModel.reactToMessage(id, emoji) }
-                        )
+                                Box(
+                                    modifier = Modifier
+                                        .width(1.dp)
+                                        .fillMaxHeight()
+                                        .background(MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+                                )
+
+                                Box(modifier = Modifier.weight(1f)) {
+                                    ChatRoomContent(
+                                        activeChannel = activeChannel,
+                                        messages = messages,
+                                        typingUser = typingUser,
+                                        inputText = inputText,
+                                        replyingTo = replyingTo,
+                                        language = currentLanguage,
+                                        onTextChanged = { inputText = it },
+                                        onSendMessage = {
+                                            viewModel.sendMessage(inputText)
+                                            inputText = ""
+                                        },
+                                        onReply = { viewModel.setReplyingTo(it) },
+                                        onCancelReply = { viewModel.setReplyingTo(null) },
+                                        onDelete = { viewModel.deleteMessage(it) },
+                                        onReact = { id, emoji -> viewModel.reactToMessage(id, emoji) }
+                                    )
+                                }
+                            }
+                        }
+                        1 -> {
+                            ExploreScreen(
+                                stories = stories,
+                                posts = filteredPosts,
+                                selectedCategory = selectedExploreCategory,
+                                language = currentLanguage,
+                                onCategorySelected = { viewModel.setExploreCategory(it) },
+                                onLikePost = { id, liked, count -> viewModel.toggleLikePost(id, liked, count) },
+                                onBookmarkPost = { id, bookmarked -> viewModel.toggleBookmarkPost(id, bookmarked) },
+                                onStoryClick = { viewModel.markStoryViewed(it) },
+                                onCreatePostClick = { showCreatePostDialog = true }
+                            )
+                        }
+                        2 -> {
+                            SavedPostsScreen(
+                                savedPosts = savedPosts,
+                                language = currentLanguage,
+                                onLikePost = { id, liked, count -> viewModel.toggleLikePost(id, liked, count) },
+                                onBookmarkPost = { id, bookmarked -> viewModel.toggleBookmarkPost(id, bookmarked) }
+                            )
+                        }
+                        3 -> {
+                            ProfileScreen(
+                                profile = userProfile,
+                                userPosts = allPosts,
+                                language = currentLanguage,
+                                isDarkMode = isDarkMode,
+                                onEditProfileClick = { showProfileSheet = true },
+                                onToggleLanguage = { viewModel.toggleLanguage() },
+                                onToggleTheme = { viewModel.toggleTheme() },
+                                onClearChat = { viewModel.clearChat() },
+                                onLikePost = { id, liked, count -> viewModel.toggleLikePost(id, liked, count) },
+                                onBookmarkPost = { id, bookmarked -> viewModel.toggleBookmarkPost(id, bookmarked) }
+                            )
+                        }
                     }
                 }
             } else {
-                // Compact Screen (Mobile): Toggle between Channel List and Chat Room
+                // Compact Screen (Mobile)
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(paddingValues)
                 ) {
-                    AnimatedContent(
-                        targetState = isViewingChatRoomOnCompact,
-                        transitionSpec = {
-                            if (targetState) {
-                                (slideInHorizontally { width -> width } + fadeIn())
-                                    .togetherWith(slideOutHorizontally { width -> -width } + fadeOut())
-                            } else {
-                                (slideInHorizontally { width -> -width } + fadeIn())
-                                    .togetherWith(slideOutHorizontally { width -> width } + fadeOut())
-                            }
-                        },
-                        label = "screen_transition"
-                    ) { viewingChat ->
-                        if (viewingChat) {
-                            ChatRoomContent(
-                                activeChannel = activeChannel,
-                                messages = messages,
-                                typingUser = typingUser,
-                                inputText = inputText,
-                                replyingTo = replyingTo,
-                                language = currentLanguage,
-                                onTextChanged = { inputText = it },
-                                onSendMessage = {
-                                    viewModel.sendMessage(inputText)
-                                    inputText = ""
+                    when (currentMainTab) {
+                        0 -> {
+                            // Chat Tab: Toggle between List and Chat Room
+                            AnimatedContent(
+                                targetState = isViewingChatRoomOnCompact,
+                                transitionSpec = {
+                                    if (targetState) {
+                                        (slideInHorizontally { width -> width } + fadeIn())
+                                            .togetherWith(slideOutHorizontally { width -> -width } + fadeOut())
+                                    } else {
+                                        (slideInHorizontally { width -> -width } + fadeIn())
+                                            .togetherWith(slideOutHorizontally { width -> width } + fadeOut())
+                                    }
                                 },
-                                onReply = { viewModel.setReplyingTo(it) },
-                                onCancelReply = { viewModel.setReplyingTo(null) },
-                                onDelete = { viewModel.deleteMessage(it) },
-                                onReact = { id, emoji -> viewModel.reactToMessage(id, emoji) }
-                            )
-                        } else {
-                            Column(modifier = Modifier.fillMaxSize()) {
-                                CategoryTabs(
-                                    activeTab = activeTab,
-                                    language = currentLanguage,
-                                    onTabSelected = { viewModel.setActiveTab(it) }
-                                )
+                                label = "chat_screen_transition"
+                            ) { viewingChat ->
+                                if (viewingChat) {
+                                    ChatRoomContent(
+                                        activeChannel = activeChannel,
+                                        messages = messages,
+                                        typingUser = typingUser,
+                                        inputText = inputText,
+                                        replyingTo = replyingTo,
+                                        language = currentLanguage,
+                                        onTextChanged = { inputText = it },
+                                        onSendMessage = {
+                                            viewModel.sendMessage(inputText)
+                                            inputText = ""
+                                        },
+                                        onReply = { viewModel.setReplyingTo(it) },
+                                        onCancelReply = { viewModel.setReplyingTo(null) },
+                                        onDelete = { viewModel.deleteMessage(it) },
+                                        onReact = { id, emoji -> viewModel.reactToMessage(id, emoji) }
+                                    )
+                                } else {
+                                    Column(modifier = Modifier.fillMaxSize()) {
+                                        CategoryTabs(
+                                            activeTab = activeChatCategoryTab,
+                                            language = currentLanguage,
+                                            onTabSelected = { viewModel.setActiveChatCategoryTab(it) }
+                                        )
 
-                                ChannelListContent(
-                                    channels = channels,
-                                    selectedChannelId = selectedChannelId,
-                                    language = currentLanguage,
-                                    onChannelSelected = { channelId ->
-                                        viewModel.selectChannel(channelId)
-                                        isViewingChatRoomOnCompact = true
-                                    },
-                                    onNewDmClick = { showStartDmDialog = true }
-                                )
+                                        ChannelListContent(
+                                            channels = channels,
+                                            selectedChannelId = selectedChannelId,
+                                            language = currentLanguage,
+                                            onChannelSelected = { channelId ->
+                                                viewModel.selectChannel(channelId)
+                                                isViewingChatRoomOnCompact = true
+                                            },
+                                            onNewDmClick = { showStartDmDialog = true }
+                                        )
+                                    }
+                                }
                             }
+                        }
+                        1 -> {
+                            ExploreScreen(
+                                stories = stories,
+                                posts = filteredPosts,
+                                selectedCategory = selectedExploreCategory,
+                                language = currentLanguage,
+                                onCategorySelected = { viewModel.setExploreCategory(it) },
+                                onLikePost = { id, liked, count -> viewModel.toggleLikePost(id, liked, count) },
+                                onBookmarkPost = { id, bookmarked -> viewModel.toggleBookmarkPost(id, bookmarked) },
+                                onStoryClick = { viewModel.markStoryViewed(it) },
+                                onCreatePostClick = { showCreatePostDialog = true }
+                            )
+                        }
+                        2 -> {
+                            SavedPostsScreen(
+                                savedPosts = savedPosts,
+                                language = currentLanguage,
+                                onLikePost = { id, liked, count -> viewModel.toggleLikePost(id, liked, count) },
+                                onBookmarkPost = { id, bookmarked -> viewModel.toggleBookmarkPost(id, bookmarked) }
+                            )
+                        }
+                        3 -> {
+                            ProfileScreen(
+                                profile = userProfile,
+                                userPosts = allPosts,
+                                language = currentLanguage,
+                                isDarkMode = isDarkMode,
+                                onEditProfileClick = { showProfileSheet = true },
+                                onToggleLanguage = { viewModel.toggleLanguage() },
+                                onToggleTheme = { viewModel.toggleTheme() },
+                                onClearChat = { viewModel.clearChat() },
+                                onLikePost = { id, liked, count -> viewModel.toggleLikePost(id, liked, count) },
+                                onBookmarkPost = { id, bookmarked -> viewModel.toggleBookmarkPost(id, bookmarked) }
+                            )
                         }
                     }
                 }
@@ -321,6 +468,17 @@ fun MainScreen(
         )
     }
 
+    if (showCreatePostDialog) {
+        CreatePostDialog(
+            language = currentLanguage,
+            onDismiss = { showCreatePostDialog = false },
+            onPublish = { content, tags, category ->
+                viewModel.createPost(content, tags, category)
+                showCreatePostDialog = false
+            }
+        )
+    }
+
     if (showProfileSheet) {
         ProfileAndSettingsSheet(
             profile = userProfile,
@@ -337,6 +495,48 @@ fun MainScreen(
     }
 }
 
+@Composable
+fun EchoBottomNavigationBar(
+    currentTab: Int,
+    language: AppLanguage,
+    onTabSelect: (Int) -> Unit
+) {
+    NavigationBar(
+        modifier = Modifier.windowInsetsPadding(WindowInsets.navigationBars),
+        containerColor = MaterialTheme.colorScheme.surface,
+        contentColor = MaterialTheme.colorScheme.onSurface
+    ) {
+        NavigationBarItem(
+            selected = currentTab == 0,
+            onClick = { onTabSelect(0) },
+            icon = { Icon(Icons.Default.Forum, contentDescription = EchoStrings.get("nav_chats", language)) },
+            label = { Text(EchoStrings.get("nav_chats", language), fontSize = 11.sp) },
+            modifier = Modifier.testTag("nav_chats_tab")
+        )
+        NavigationBarItem(
+            selected = currentTab == 1,
+            onClick = { onTabSelect(1) },
+            icon = { Icon(Icons.Default.Explore, contentDescription = EchoStrings.get("nav_explore", language)) },
+            label = { Text(EchoStrings.get("nav_explore", language), fontSize = 11.sp) },
+            modifier = Modifier.testTag("nav_explore_tab")
+        )
+        NavigationBarItem(
+            selected = currentTab == 2,
+            onClick = { onTabSelect(2) },
+            icon = { Icon(Icons.Default.Bookmark, contentDescription = EchoStrings.get("nav_saved", language)) },
+            label = { Text(EchoStrings.get("nav_saved", language), fontSize = 11.sp) },
+            modifier = Modifier.testTag("nav_saved_tab")
+        )
+        NavigationBarItem(
+            selected = currentTab == 3,
+            onClick = { onTabSelect(3) },
+            icon = { Icon(Icons.Default.Person, contentDescription = EchoStrings.get("nav_profile", language)) },
+            label = { Text(EchoStrings.get("nav_profile", language), fontSize = 11.sp) },
+            modifier = Modifier.testTag("nav_profile_tab")
+        )
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun EchoTopAppBar(
@@ -347,6 +547,7 @@ fun EchoTopAppBar(
     searchQuery: String,
     userAvatarColor: Long,
     userName: String,
+    mainTab: Int,
     onBackClick: () -> Unit,
     onToggleLanguage: () -> Unit,
     onToggleTheme: () -> Unit,
@@ -354,10 +555,16 @@ fun EchoTopAppBar(
     onSearchQueryChange: (String) -> Unit,
     onCloseSearch: () -> Unit,
     onOpenProfile: () -> Unit,
-    onOpenMenu: () -> Unit,
     onClearChat: () -> Unit
 ) {
     var menuExpanded by remember { mutableStateOf(false) }
+
+    val tabTitle = when (mainTab) {
+        1 -> EchoStrings.get("explore_title", currentLanguage)
+        2 -> EchoStrings.get("saved_posts_title", currentLanguage)
+        3 -> EchoStrings.get("profile_title", currentLanguage)
+        else -> EchoStrings.get("app_title", currentLanguage)
+    }
 
     TopAppBar(
         colors = TopAppBarDefaults.topAppBarColors(
@@ -373,7 +580,6 @@ fun EchoTopAppBar(
                     )
                 }
             } else {
-                // Branded Echo Chat soundwave icon
                 Box(
                     modifier = Modifier
                         .padding(start = 12.dp, end = 4.dp)
@@ -383,8 +589,8 @@ fun EchoTopAppBar(
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        imageVector = Icons.Default.Forum,
-                        contentDescription = "EchoChat Logo",
+                        imageVector = if (mainTab == 1) Icons.Default.Explore else Icons.Default.Forum,
+                        contentDescription = "Echo Logo",
                         tint = Color.White,
                         modifier = Modifier.size(20.dp)
                     )
@@ -435,7 +641,7 @@ fun EchoTopAppBar(
             } else {
                 Column {
                     Text(
-                        text = EchoStrings.get("app_title", currentLanguage),
+                        text = tabTitle,
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.ExtraBold,
                         color = MaterialTheme.colorScheme.primary

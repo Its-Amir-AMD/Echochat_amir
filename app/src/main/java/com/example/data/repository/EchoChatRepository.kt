@@ -3,6 +3,8 @@ package com.example.data.repository
 import com.example.data.local.EchoChatDao
 import com.example.data.model.ChannelEntity
 import com.example.data.model.MessageEntity
+import com.example.data.model.PostEntity
+import com.example.data.model.StoryEntity
 import com.example.data.model.UserProfileEntity
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -19,6 +21,9 @@ class EchoChatRepository(
 ) {
     val allChannels: Flow<List<ChannelEntity>> = dao.getAllChannels()
     val userProfile: Flow<UserProfileEntity?> = dao.getUserProfile()
+    val allPosts: Flow<List<PostEntity>> = dao.getAllPosts()
+    val savedPosts: Flow<List<PostEntity>> = dao.getSavedPosts()
+    val allStories: Flow<List<StoryEntity>> = dao.getAllStories()
 
     // Real-time typing indicators for active channels
     private val _typingStatus = MutableStateFlow<Map<String, String?>>(emptyMap())
@@ -121,7 +126,7 @@ class EchoChatRepository(
                     "فارسی" in input || "زبان" in input || "persian" in lower || "language" in lower ->
                         "اکو چت به صورت کامل از چینش راست‌به‌چپ (RTL) و زبان فارسی و انگلیسی پشتیبانی می‌کند."
                     "امکانات" in input || "feature" in lower ->
-                        "امکانات فعال: ارسال پیام سریع، واکنش با ایموجی، پاسخ (Quote Reply)، جستجو، کانال‌بندی و حالت تاریک/روشن 📱"
+                        "امکانات فعال: اکسپلور و فید اجتماعی، استوری‌ها، ارسال پیام، لایک و بوکمارک، پاسخ به پیام‌ها، واکنش با ایموجی و تم تاریک/روشن 📱"
                     else ->
                         "اکو دریافت شد: «$input» ✅\nپیام شما با موفقیت ثبت گردید و پردازش شد."
                 }
@@ -189,6 +194,51 @@ class EchoChatRepository(
             createdAt = System.currentTimeMillis()
         )
         dao.insertChannel(newDm)
+    }
+
+    // --- Social Posts Operations ---
+    suspend fun createPost(
+        content: String,
+        tags: String = "",
+        category: String = "tech"
+    ) {
+        val profile = dao.getUserProfile()
+        val newPost = PostEntity(
+            id = "post_" + UUID.randomUUID().toString().take(8),
+            authorId = "me",
+            authorName = "شما (کاربر اکو)",
+            authorRole = "عضو اکو سوشال 🚀",
+            authorAvatarColor = 0xFF4F46E5,
+            content = content.trim(),
+            tags = tags.trim(),
+            category = category,
+            likesCount = 1,
+            commentsCount = 0,
+            sharesCount = 0,
+            isLiked = true,
+            isBookmarked = false,
+            timestamp = System.currentTimeMillis(),
+            cardColor = 0xFF1E293B
+        )
+        dao.insertPost(newPost)
+    }
+
+    suspend fun toggleLikePost(postId: String, currentLiked: Boolean, currentCount: Int) {
+        val newLiked = !currentLiked
+        val newCount = if (newLiked) currentCount + 1 else (currentCount - 1).coerceAtLeast(0)
+        dao.updatePostLike(postId, newLiked, newCount)
+    }
+
+    suspend fun toggleBookmarkPost(postId: String, currentBookmarked: Boolean) {
+        dao.updatePostBookmark(postId, !currentBookmarked)
+    }
+
+    suspend fun deletePost(postId: String) {
+        dao.deletePost(postId)
+    }
+
+    suspend fun markStoryViewed(storyId: String) {
+        dao.markStoryViewed(storyId)
     }
 
     suspend fun updateProfile(

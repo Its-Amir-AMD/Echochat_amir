@@ -5,12 +5,15 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.data.local.EchoDatabase
 import com.example.data.model.ChannelEntity
+import com.example.data.model.CommentEntity
 import com.example.data.model.MessageEntity
 import com.example.data.model.PostEntity
 import com.example.data.model.StoryEntity
 import com.example.data.model.UserProfileEntity
 import com.example.data.repository.EchoChatRepository
 import com.example.util.AppLanguage
+import com.example.util.UserPreferences
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -25,6 +28,7 @@ import kotlinx.coroutines.launch
 class EchoChatViewModel(application: Application) : AndroidViewModel(application) {
 
     private val repository: EchoChatRepository
+    private val userPreferences = UserPreferences(application)
 
     init {
         val database = EchoDatabase.getInstance(application)
@@ -62,6 +66,15 @@ class EchoChatViewModel(application: Application) : AndroidViewModel(application
 
     private val _isDarkMode = MutableStateFlow<Boolean?>(null) // null = follow system
     val isDarkMode: StateFlow<Boolean?> = _isDarkMode.asStateFlow()
+
+    init {
+        viewModelScope.launch {
+            userPreferences.language.collect { _currentLanguage.value = it }
+        }
+        viewModelScope.launch {
+            userPreferences.darkMode.collect { _isDarkMode.value = it }
+        }
+    }
 
     private val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
@@ -246,21 +259,27 @@ class EchoChatViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun markStoryViewed(storyId: String) {
-        viewModelScope.launch {
-            repository.markStoryViewed(storyId)
-        }
+        viewModelScope.launch { repository.markStoryViewed(storyId) }
+    }
+
+    fun createStory(title: String) {
+        viewModelScope.launch { repository.createStory(title) }
+    }
+
+    fun commentsForPost(postId: String): Flow<List<CommentEntity>> =
+        repository.getCommentsForPost(postId)
+
+    fun createComment(postId: String, content: String) {
+        viewModelScope.launch { repository.createComment(postId, content) }
     }
 
     fun toggleLanguage() {
-        _currentLanguage.value = if (_currentLanguage.value == AppLanguage.PERSIAN) {
-            AppLanguage.ENGLISH
-        } else {
-            AppLanguage.PERSIAN
-        }
+        setLanguage(if (_currentLanguage.value == AppLanguage.PERSIAN) AppLanguage.ENGLISH else AppLanguage.PERSIAN)
     }
 
     fun setLanguage(lang: AppLanguage) {
         _currentLanguage.value = lang
+        viewModelScope.launch { userPreferences.setLanguage(lang) }
     }
 
     fun toggleTheme() {
@@ -269,6 +288,7 @@ class EchoChatViewModel(application: Application) : AndroidViewModel(application
             true -> false
             false -> null
         }
+        viewModelScope.launch { userPreferences.setDarkMode(_isDarkMode.value) }
     }
 
     fun updateProfile(displayName: String, bio: String, avatarColor: Long) {

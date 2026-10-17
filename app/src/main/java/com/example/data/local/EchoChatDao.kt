@@ -4,7 +4,9 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Transaction
 import com.example.data.model.ChannelEntity
+import com.example.data.model.CommentEntity
 import com.example.data.model.MessageEntity
 import com.example.data.model.PostEntity
 import com.example.data.model.StoryEntity
@@ -74,14 +76,35 @@ interface EchoChatDao {
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertPosts(posts: List<PostEntity>)
 
-    @Query("UPDATE social_posts SET isLiked = :isLiked, likesCount = :likesCount WHERE id = :postId")
-    suspend fun updatePostLike(postId: String, isLiked: Boolean, likesCount: Int)
+    @Query("UPDATE social_posts SET isLiked = CASE WHEN isLiked = 0 THEN 1 ELSE 0 END, likesCount = CASE WHEN isLiked = 0 THEN likesCount + 1 ELSE MAX(likesCount - 1, 0) END WHERE id = :postId")
+    suspend fun togglePostLike(postId: String)
+
+    @Query("SELECT * FROM social_posts WHERE id = :postId LIMIT 1")
+    suspend fun getPostById(postId: String): PostEntity?
 
     @Query("UPDATE social_posts SET isBookmarked = :isBookmarked WHERE id = :postId")
     suspend fun updatePostBookmark(postId: String, isBookmarked: Boolean)
 
     @Query("DELETE FROM social_posts WHERE id = :postId")
     suspend fun deletePost(postId: String)
+
+    @Query("SELECT * FROM post_comments WHERE postId = :postId ORDER BY timestamp ASC")
+    fun getCommentsForPost(postId: String): Flow<List<CommentEntity>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertComment(comment: CommentEntity)
+
+    @Query("UPDATE social_posts SET commentsCount = commentsCount + 1 WHERE id = :postId")
+    suspend fun incrementPostCommentCount(postId: String)
+
+    @Transaction
+    suspend fun insertCommentAndIncrementCount(comment: CommentEntity) {
+        insertComment(comment)
+        incrementPostCommentCount(comment.postId)
+    }
+
+    @Query("DELETE FROM post_comments WHERE id = :commentId")
+    suspend fun deleteComment(commentId: String)
 
     // --- Stories ---
     @Query("SELECT * FROM user_stories ORDER BY timestamp DESC")
@@ -90,12 +113,18 @@ interface EchoChatDao {
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertStories(stories: List<StoryEntity>)
 
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertStory(story: StoryEntity)
+
     @Query("UPDATE user_stories SET isViewed = 1 WHERE id = :storyId")
     suspend fun markStoryViewed(storyId: String)
 
     // --- Profile ---
     @Query("SELECT * FROM user_profile WHERE userId = 'me' LIMIT 1")
     fun getUserProfile(): Flow<UserProfileEntity?>
+
+    @Query("SELECT * FROM user_profile WHERE userId = 'me' LIMIT 1")
+    suspend fun getUserProfileOnce(): UserProfileEntity?
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertOrUpdateProfile(profile: UserProfileEntity)

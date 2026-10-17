@@ -649,8 +649,7 @@ fun EchoTopAppBar(
                         overflow = TextOverflow.Ellipsis
                     )
                     Text(
-                        text = if (activeChannel.isDirectMessage) EchoStrings.get("online", currentLanguage)
-                        else activeChannel.description,
+                        text = activeChannel.description,
                         style = MaterialTheme.typography.bodySmall,
                         color = if (activeChannel.isDirectMessage) Color(0xFF10B981)
                         else MaterialTheme.colorScheme.onSurfaceVariant,
@@ -885,12 +884,11 @@ fun ChatRoomContent(
                         modifier = Modifier
                             .size(10.dp)
                             .clip(CircleShape)
-                            .background(Color(0xFF10B981))
+                            .background(MaterialTheme.colorScheme.outline)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = if (activeChannel.isDirectMessage) "گفتگوی زنده با ${activeChannel.name}"
-                        else "کانال فعال: ${activeChannel.name} • ${activeChannel.description}",
+                        text = if (activeChannel.isDirectMessage) activeChannel.name else activeChannel.description,
                         fontSize = 12.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,

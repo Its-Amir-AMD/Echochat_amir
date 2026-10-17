@@ -1,5 +1,11 @@
 package com.example.ui.screens
 
+import androidx.compose.material3.TextButton
+
+import androidx.compose.material3.AlertDialog
+
+import androidx.compose.foundation.layout.heightIn
+
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
@@ -129,11 +135,15 @@ fun MainScreen(
     val savedPosts by viewModel.savedPosts.collectAsStateWithLifecycle()
     val selectedExploreCategory by viewModel.selectedExploreCategory.collectAsStateWithLifecycle()
     val allPosts by viewModel.posts.collectAsStateWithLifecycle()
+    val activeComments by viewModel.activeComments.collectAsStateWithLifecycle()
+    val activeCommentsPostId by viewModel.activeCommentsPostId.collectAsStateWithLifecycle()
 
     var showCreateChannelDialog by remember { mutableStateOf(false) }
     var showStartDmDialog by remember { mutableStateOf(false) }
     var showCreatePostDialog by remember { mutableStateOf(false) }
     var showProfileSheet by remember { mutableStateOf(false) }
+    var showCommentsDialog by remember { mutableStateOf(false) }
+    var commentInput by remember { mutableStateOf("") }
     var showOptionsMenu by remember { mutableStateOf(false) }
     var inputText by remember { mutableStateOf("") }
 
@@ -314,7 +324,13 @@ fun MainScreen(
                                 onLikePost = { id, liked, count -> viewModel.toggleLikePost(id, liked, count) },
                                 onBookmarkPost = { id, bookmarked -> viewModel.toggleBookmarkPost(id, bookmarked) },
                                 onStoryClick = { viewModel.markStoryViewed(it) },
-                                onCreatePostClick = { showCreatePostDialog = true }
+                                onCreatePostClick = { showCreatePostDialog = true },
+                                onCreateStory = { viewModel.createStory(it) },
+                                onOpenComments = { postId ->
+                                    commentInput = ""
+                                    viewModel.openComments(postId)
+                                    showCommentsDialog = true
+                                }
                             )
                         }
                         2 -> {
@@ -414,7 +430,13 @@ fun MainScreen(
                                 onLikePost = { id, liked, count -> viewModel.toggleLikePost(id, liked, count) },
                                 onBookmarkPost = { id, bookmarked -> viewModel.toggleBookmarkPost(id, bookmarked) },
                                 onStoryClick = { viewModel.markStoryViewed(it) },
-                                onCreatePostClick = { showCreatePostDialog = true }
+                                onCreatePostClick = { showCreatePostDialog = true },
+                                onCreateStory = { viewModel.createStory(it) },
+                                onOpenComments = { postId ->
+                                    commentInput = ""
+                                    viewModel.openComments(postId)
+                                    showCommentsDialog = true
+                                }
                             )
                         }
                         2 -> {
@@ -475,6 +497,58 @@ fun MainScreen(
             onPublish = { content, tags, category ->
                 viewModel.createPost(content, tags, category)
                 showCreatePostDialog = false
+            }
+        )
+    }
+
+    if (showCommentsDialog) {
+        AlertDialog(
+            onDismissRequest = {
+                showCommentsDialog = false
+                viewModel.closeComments()
+            },
+            title = { Text(EchoStrings.get("comments_title", currentLanguage)) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    if (activeComments.isEmpty()) {
+                        Text(
+                            text = EchoStrings.get("no_comments", currentLanguage),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    } else {
+                        LazyColumn(modifier = Modifier.heightIn(max = 240.dp)) {
+                            items(activeComments, key = { it.id }) { comment ->
+                                Column(modifier = Modifier.fillMaxWidth().padding(vertical = 5.dp)) {
+                                    Text(comment.authorName, fontWeight = FontWeight.SemiBold)
+                                    Text(comment.content)
+                                }
+                            }
+                        }
+                    }
+                    OutlinedTextField(
+                        value = commentInput,
+                        onValueChange = { commentInput = it },
+                        label = { Text(EchoStrings.get("comment_hint", currentLanguage)) },
+                        modifier = Modifier.fillMaxWidth(),
+                        minLines = 1,
+                        maxLines = 3
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = commentInput.isNotBlank() && activeCommentsPostId != null,
+                    onClick = {
+                        activeCommentsPostId?.let { viewModel.createComment(it, commentInput) }
+                        commentInput = ""
+                    }
+                ) { Text(EchoStrings.get("send_comment", currentLanguage)) }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    showCommentsDialog = false
+                    viewModel.closeComments()
+                }) { Text(EchoStrings.get("close", currentLanguage)) }
             }
         )
     }
@@ -629,7 +703,7 @@ fun EchoTopAppBar(
                         overflow = TextOverflow.Ellipsis
                     )
                     Text(
-                        text = if (activeChannel.isDirectMessage) EchoStrings.get("online", currentLanguage)
+                        text = if (activeChannel.isDirectMessage) EchoStrings.get("direct_message", currentLanguage)
                         else activeChannel.description,
                         style = MaterialTheme.typography.bodySmall,
                         color = if (activeChannel.isDirectMessage) Color(0xFF10B981)

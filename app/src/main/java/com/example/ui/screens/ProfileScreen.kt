@@ -148,7 +148,7 @@ fun ProfileScreen(
                                 .background(MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
                         )
                         StatItem(
-                            count = "${effectiveProfile.followersCount}+",
+                            count = effectiveProfile.followersCount.toString(),
                             label = EchoStrings.get("stats_followers", language)
                         )
                         Box(
@@ -252,7 +252,7 @@ fun ProfileScreen(
             )
         }
 
-        val myPosts = userPosts.filter { it.authorId == "me" || it.authorId.startsWith("user_") }
+        val myPosts = userPosts.filter { it.authorId == "me" }
         if (myPosts.isEmpty()) {
             item {
                 Box(

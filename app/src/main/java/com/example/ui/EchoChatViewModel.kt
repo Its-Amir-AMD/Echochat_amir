@@ -5,6 +5,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.data.local.EchoDatabase
 import com.example.data.model.ChannelEntity
+import com.example.data.model.CommentEntity
 import com.example.data.model.MessageEntity
 import com.example.data.model.PostEntity
 import com.example.data.model.StoryEntity
@@ -17,18 +18,22 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class EchoChatViewModel(application: Application) : AndroidViewModel(application) {
 
+    private val settings = application.getSharedPreferences("echochat_preferences", 0)
     private val repository: EchoChatRepository
 
     init {
         val database = EchoDatabase.getInstance(application)
-        repository = EchoChatRepository(database.chatDao(), viewModelScope)
+        repository = EchoChatRepository(database.chatDao())
     }
 
     val channels: StateFlow<List<ChannelEntity>> = repository.allChannels
@@ -57,10 +62,15 @@ class EchoChatViewModel(application: Application) : AndroidViewModel(application
     private val _selectedChannelId = MutableStateFlow("general")
     val selectedChannelId: StateFlow<String> = _selectedChannelId.asStateFlow()
 
-    private val _currentLanguage = MutableStateFlow(AppLanguage.PERSIAN)
+    private val _currentLanguage = MutableStateFlow(
+        if (settings.getString("language", "fa") == "en") AppLanguage.ENGLISH else AppLanguage.PERSIAN
+    )
     val currentLanguage: StateFlow<AppLanguage> = _currentLanguage.asStateFlow()
 
-    private val _isDarkMode = MutableStateFlow<Boolean?>(null) // null = follow system
+    // null follows the system theme; explicit preferences survive restarts.
+    private val _isDarkMode = MutableStateFlow<Boolean?>(
+        if (!settings.contains("dark_mode")) null else settings.getBoolean("dark_mode", true)
+    )
     val isDarkMode: StateFlow<Boolean?> = _isDarkMode.asStateFlow()
 
     private val _searchQuery = MutableStateFlow("")
@@ -74,6 +84,26 @@ class EchoChatViewModel(application: Application) : AndroidViewModel(application
 
     private val _replyingTo = MutableStateFlow<MessageEntity?>(null)
     val replyingTo: StateFlow<MessageEntity?> = _replyingTo.asStateFlow()
+
+    private val _activeCommentsPostId = MutableStateFlow<String?>(null)
+    val activeCommentsPostId: StateFlow<String?> = _activeCommentsPostId.asStateFlow()
+    val activeComments: StateFlow<List<CommentEntity>> = _activeCommentsPostId
+        .flatMapLatest { postId ->
+            if (postId.isNullOrBlank()) flowOf(emptyList()) else repository.getCommentsForPost(postId)
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    init {
+        // Migrate preferences from the profile row on older installs, if needed.
+        viewModelScope.launch {
+            val profile = repository.userProfile.filterNotNull().first()
+            if (!settings.contains("language")) {
+                _currentLanguage.value = if (profile.languageCode == "en") AppLanguage.ENGLISH else AppLanguage.PERSIAN
+            }
+            if (!settings.contains("dark_mode")) _isDarkMode.value = profile.isDarkMode
+            persistPreferencesLocally()
+        }
+    }
 
     // Active Channel details
     val activeChannel: StateFlow<ChannelEntity?> = _selectedChannelId
@@ -228,9 +258,8 @@ class EchoChatViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun toggleLikePost(postId: String, currentLiked: Boolean, currentCount: Int) {
-        viewModelScope.launch {
-            repository.toggleLikePost(postId, currentLiked, currentCount)
-        }
+        // Update the stored count atomically instead of trusting potentially stale UI state.
+        viewModelScope.launch { repository.toggleLikePost(postId) }
     }
 
     fun toggleBookmarkPost(postId: String, currentBookmarked: Boolean) {
@@ -246,21 +275,33 @@ class EchoChatViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun markStoryViewed(storyId: String) {
-        viewModelScope.launch {
-            repository.markStoryViewed(storyId)
-        }
+        viewModelScope.launch { repository.markStoryViewed(storyId) }
+    }
+
+    fun createStory(title: String) {
+        viewModelScope.launch { repository.createStory(title) }
+    }
+
+    fun openComments(postId: String) { _activeCommentsPostId.value = postId }
+    fun closeComments() { _activeCommentsPostId.value = null }
+
+    fun createComment(postId: String, content: String) {
+        if (content.isBlank()) return
+        viewModelScope.launch { repository.createComment(postId, content) }
+    }
+
+    fun deleteComment(commentId: String) {
+        viewModelScope.launch { repository.deleteComment(commentId) }
     }
 
     fun toggleLanguage() {
-        _currentLanguage.value = if (_currentLanguage.value == AppLanguage.PERSIAN) {
-            AppLanguage.ENGLISH
-        } else {
-            AppLanguage.PERSIAN
-        }
+        _currentLanguage.value = if (_currentLanguage.value == AppLanguage.PERSIAN) AppLanguage.ENGLISH else AppLanguage.PERSIAN
+        persistPreferences()
     }
 
     fun setLanguage(lang: AppLanguage) {
         _currentLanguage.value = lang
+        persistPreferences()
     }
 
     fun toggleTheme() {
@@ -269,9 +310,24 @@ class EchoChatViewModel(application: Application) : AndroidViewModel(application
             true -> false
             false -> null
         }
+        persistPreferences()
+    }
+
+    private fun persistPreferencesLocally() {
+        val editor = settings.edit().putString("language", _currentLanguage.value.code)
+        if (_isDarkMode.value == null) editor.remove("dark_mode") else editor.putBoolean("dark_mode", _isDarkMode.value!!)
+        editor.apply()
+    }
+
+    private fun persistPreferences() {
+        persistPreferencesLocally()
+        viewModelScope.launch {
+            repository.updatePreferences(_currentLanguage.value.code, _isDarkMode.value)
+        }
     }
 
     fun updateProfile(displayName: String, bio: String, avatarColor: Long) {
+        persistPreferencesLocally()
         viewModelScope.launch {
             repository.updateProfile(
                 displayName = displayName,

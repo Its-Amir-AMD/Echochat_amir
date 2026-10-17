@@ -2,23 +2,17 @@ package com.example.data.repository
 
 import com.example.data.local.EchoChatDao
 import com.example.data.model.ChannelEntity
+import com.example.data.model.CommentEntity
 import com.example.data.model.MessageEntity
 import com.example.data.model.PostEntity
 import com.example.data.model.StoryEntity
 import com.example.data.model.UserProfileEntity
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.launch
 import java.util.UUID
 
-class EchoChatRepository(
-    private val dao: EchoChatDao,
-    private val scope: CoroutineScope = CoroutineScope(Dispatchers.IO)
-) {
+class EchoChatRepository(private val dao: EchoChatDao) {
     val allChannels: Flow<List<ChannelEntity>> = dao.getAllChannels()
     val userProfile: Flow<UserProfileEntity?> = dao.getUserProfile()
     val allPosts: Flow<List<PostEntity>> = dao.getAllPosts()
@@ -56,7 +50,7 @@ class EchoChatRepository(
             content = content.trim(),
             timestamp = now,
             isOutgoing = true,
-            status = "read",
+            status = "sent",
             replyToId = replyToId,
             replyToSnippet = replyToSnippet
         )
@@ -64,94 +58,9 @@ class EchoChatRepository(
         dao.insertMessage(outgoingMsg)
         dao.updateChannelLastMessage(channelId, content.trim(), now)
 
-        // Trigger smart automated reply or simulated response
-        triggerSimulatedReply(channelId, content.trim(), userMsgId)
     }
 
-    private fun triggerSimulatedReply(channelId: String, userText: String, replyToId: String) {
-        scope.launch {
-            // Determine respondent based on channel
-            val respondentName = when (channelId) {
-                "bot_echo" -> "دستیار هوشمند اکو"
-                "tech" -> "رضا (توسعه‌دهنده)"
-                "design" -> "مونا (طراح UX)"
-                "dm_sara" -> "سارا احمدی"
-                else -> "علی راد"
-            }
-            val respondentColor = when (channelId) {
-                "bot_echo" -> 0xFF6366F1
-                "tech" -> 0xFF3B82F6
-                "design" -> 0xFF8B5CF6
-                "dm_sara" -> 0xFFEC4899
-                else -> 0xFF10B981
-            }
-
-            // Show typing indicator
-            _typingStatus.value = _typingStatus.value + (channelId to respondentName)
-            delay(1600) // Realistic typing delay
-
-            val replyText = generateBotReply(channelId, userText)
-
-            val replyMsg = MessageEntity(
-                id = UUID.randomUUID().toString(),
-                channelId = channelId,
-                senderId = "peer_$channelId",
-                senderName = respondentName,
-                senderAvatarColor = respondentColor,
-                content = replyText,
-                timestamp = System.currentTimeMillis(),
-                isOutgoing = false,
-                status = "read",
-                replyToId = replyToId,
-                replyToSnippet = if (userText.length > 40) userText.take(40) + "..." else userText
-            )
-
-            dao.insertMessage(replyMsg)
-            dao.updateChannelLastMessage(channelId, replyText, System.currentTimeMillis())
-
-            // Clear typing indicator
-            _typingStatus.value = _typingStatus.value - channelId
-        }
-    }
-
-    private fun generateBotReply(channelId: String, input: String): String {
-        val lower = input.lowercase()
-        return when {
-            channelId == "bot_echo" -> {
-                when {
-                    "سلام" in input || "hello" in lower || "hi" in lower ->
-                        "سلام و درود! چطور می‌تونم در اکو چت کمکتون کنم؟ 🌟"
-                    "حالت چطوره" in input || "چطوری" in input || "how are you" in lower ->
-                        "عالی هستم، ممنون! آماده‌ام تا تمام پیام‌های شما را پردازش و بازتاب دهم ⚡"
-                    "فارسی" in input || "زبان" in input || "persian" in lower || "language" in lower ->
-                        "اکو چت به صورت کامل از چینش راست‌به‌چپ (RTL) و زبان فارسی و انگلیسی پشتیبانی می‌کند."
-                    "امکانات" in input || "feature" in lower ->
-                        "امکانات فعال: اکسپلور و فید اجتماعی، استوری‌ها، ارسال پیام، لایک و بوکمارک، پاسخ به پیام‌ها، واکنش با ایموجی و تم تاریک/روشن 📱"
-                    else ->
-                        "اکو دریافت شد: «$input» ✅\nپیام شما با موفقیت ثبت گردید و پردازش شد."
-                }
-            }
-            channelId == "tech" -> {
-                when {
-                    "compose" in lower || "کاتلین" in input ->
-                        "کاتلین با استفاده از StateFlow و Coroutines در کنار Jetpack Compose عملکرد فوق‌العاده‌ای روی اندروید داره!"
-                    else ->
-                        "نکته فنی جالبی بود! معماری MVVM و پایگاه‌داده Room این سرعت واکنش سریع رو فراهم کرده."
-                }
-            }
-            channelId == "design" -> {
-                "ترکیب رنگ‌های Indigo و Slate همراه با انیمیشن‌های نرم Spring، جلوه بسیار شیک و مدرنی به برنامه داده است 🎨"
-            }
-            channelId == "dm_sara" -> {
-                "پیامت رو دیدم! بسیار عالیه، حتماً بخش‌های جدید رو با هم تست و هماهنگ می‌کنیم ✨"
-            }
-            else -> {
-                "ممنون از ارسالت! نظرت در مورد ویژگی‌های اکو چت چیه؟"
-            }
-        }
-    }
-
-    suspend fun setReaction(messageId: String, reaction: String?) {
+    suspend fun setReaction    suspend fun setReaction(messageId: String, reaction: String?) {
         dao.updateMessageReaction(messageId, reaction)
     }
 
@@ -196,49 +105,97 @@ class EchoChatRepository(
         dao.insertChannel(newDm)
     }
 
-    // --- Social Posts Operations ---
-    suspend fun createPost(
-        content: String,
-        tags: String = "",
-        category: String = "tech"
-    ) {
-        val profile = dao.getUserProfile()
-        val newPost = PostEntity(
-            id = "post_" + UUID.randomUUID().toString().take(8),
+    // --- Social posts, stories and comments ---
+    suspend fun createPost(content: String, tags: String = "", category: String = "tech") {
+        val normalizedContent = content.trim()
+        if (normalizedContent.isEmpty()) return
+
+        val profile = dao.getUserProfileOnce() ?: UserProfileEntity()
+        val post = PostEntity(
+            id = "post_" + UUID.randomUUID().toString(),
             authorId = "me",
-            authorName = "شما (کاربر اکو)",
-            authorRole = "عضو اکو سوشال 🚀",
-            authorAvatarColor = 0xFF4F46E5,
-            content = content.trim(),
+            authorName = profile.displayName,
+            authorRole = "EchoChat member",
+            authorAvatarColor = profile.avatarColor,
+            content = normalizedContent,
             tags = tags.trim(),
             category = category,
-            likesCount = 1,
+            likesCount = 0,
             commentsCount = 0,
             sharesCount = 0,
-            isLiked = true,
+            isLiked = false,
             isBookmarked = false,
             timestamp = System.currentTimeMillis(),
             cardColor = 0xFF1E293B
         )
-        dao.insertPost(newPost)
+        dao.insertPost(post)
+        dao.insertOrUpdateProfile(profile.copy(postsCount = dao.countPostsByAuthor("me")))
     }
 
-    suspend fun toggleLikePost(postId: String, currentLiked: Boolean, currentCount: Int) {
-        val newLiked = !currentLiked
-        val newCount = if (newLiked) currentCount + 1 else (currentCount - 1).coerceAtLeast(0)
-        dao.updatePostLike(postId, newLiked, newCount)
-    }
+    suspend fun toggleLikePost(postId: String) = dao.togglePostLike(postId)
 
     suspend fun toggleBookmarkPost(postId: String, currentBookmarked: Boolean) {
         dao.updatePostBookmark(postId, !currentBookmarked)
     }
 
     suspend fun deletePost(postId: String) {
+        val post = dao.getPostById(postId) ?: return
+        if (post.authorId != "me") return
         dao.deletePost(postId)
+        dao.getUserProfileOnce()?.let { profile ->
+            dao.insertOrUpdateProfile(profile.copy(postsCount = dao.countPostsByAuthor("me")))
+        }
     }
 
-    suspend fun markStoryViewed(storyId: String) {
-        dao.markStoryViewed(storyId)
+    suspend fun markStoryViewed(storyId: String) = dao.markStoryViewed(storyId)
+
+    suspend fun createStory(title: String) {
+        val normalizedTitle = title.trim()
+        if (normalizedTitle.isEmpty()) return
+        val profile = dao.getUserProfileOnce() ?: UserProfileEntity()
+        dao.insertStory(
+            StoryEntity(
+                id = "story_" + UUID.randomUUID().toString(),
+                authorName = profile.displayName,
+                authorAvatarColor = profile.avatarColor,
+                storyTitle = normalizedTitle,
+                isViewed = false,
+                timestamp = System.currentTimeMillis()
+            )
+        )
+    }
+
+    fun getCommentsForPost(postId: String): Flow<List<CommentEntity>> =
+        dao.getCommentsForPost(postId)
+
+    suspend fun createComment(postId: String, content: String) {
+        val normalizedContent = content.trim()
+        if (normalizedContent.isEmpty() || dao.getPostById(postId) == null) return
+        val profile = dao.getUserProfileOnce() ?: UserProfileEntity()
+        dao.insertComment(
+            CommentEntity(
+                id = "comment_" + UUID.randomUUID().toString(),
+                postId = postId,
+                authorId = "me",
+                authorName = profile.displayName,
+                authorAvatarColor = profile.avatarColor,
+                content = normalizedContent,
+                timestamp = System.currentTimeMillis()
+            )
+        )
+        dao.updatePostCommentCount(postId, dao.countCommentsForPost(postId))
+    }
+
+    suspend fun deleteComment(commentId: String) {
+        val comment = dao.getCommentById(commentId) ?: return
+        if (comment.authorId != "me") return
+        dao.deleteComment(commentId)
+        dao.updatePostCommentCount(comment.postId, dao.countCommentsForPost(comment.postId))
+    }
+
+    suspend fun updatePreferences(languageCode: String, isDarkMode: Boolean?) {
+        val profile = dao.getUserProfileOnce() ?: UserProfileEntity()
+        dao.insertOrUpdateProfile(profile.copy(languageCode = languageCode, isDarkMode = isDarkMode))
     }
 
     suspend fun updateProfile(
@@ -248,11 +205,11 @@ class EchoChatRepository(
         languageCode: String,
         isDarkMode: Boolean?
     ) {
+        val existing = dao.getUserProfileOnce() ?: UserProfileEntity()
         dao.insertOrUpdateProfile(
-            UserProfileEntity(
-                userId = "me",
-                displayName = displayName,
-                bio = bio,
+            existing.copy(
+                displayName = displayName.trim().ifEmpty { existing.displayName },
+                bio = bio.trim(),
                 avatarColor = avatarColor,
                 languageCode = languageCode,
                 isDarkMode = isDarkMode

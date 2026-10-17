@@ -1,8 +1,7 @@
 package com.example.ui.screens
 
-import android.content.ClipData
-import android.content.ClipboardManager
 import android.content.Context
+import android.content.Intent
 import android.widget.Toast
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Spring
@@ -85,9 +84,14 @@ fun ExploreScreen(
     onBookmarkPost: (String, Boolean) -> Unit,
     onStoryClick: (String) -> Unit,
     onCreatePostClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onCreateStory: (String) -> Unit = {},
+    onOpenComments: (String) -> Unit = {}
 ) {
     val context = LocalContext.current
+    var showCreateStoryDialog by remember { mutableStateOf(false) }
+    var newStoryText by remember { mutableStateOf("") }
+    var selectedStory by remember { mutableStateOf<StoryEntity?>(null) }
 
     val categories = listOf(
         "all" to EchoStrings.get("filter_all", language),
@@ -122,7 +126,8 @@ fun ExploreScreen(
                         Column(
                             horizontalAlignment = Alignment.CenterHorizontally,
                             modifier = Modifier.clickable {
-                                Toast.makeText(context, "استوری جدید به زودی فعال می‌شود", Toast.LENGTH_SHORT).show()
+                                newStoryText = ""
+                                showCreateStoryDialog = true
                             }
                         ) {
                             Box(
@@ -166,7 +171,7 @@ fun ExploreScreen(
                             modifier = Modifier
                                 .clickable {
                                     onStoryClick(story.id)
-                                    Toast.makeText(context, story.storyTitle, Toast.LENGTH_SHORT).show()
+                                    selectedStory = story
                                 }
                                 .testTag("story_item_${story.id}")
                         ) {
@@ -253,13 +258,60 @@ fun ExploreScreen(
                     onLike = { onLikePost(post.id, post.isLiked, post.likesCount) },
                     onBookmark = { onBookmarkPost(post.id, post.isBookmarked) },
                     onShare = {
-                        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                        clipboard.setPrimaryClip(ClipData.newPlainText("EchoPost", post.content))
-                        Toast.makeText(context, EchoStrings.get("shared_toast", language), Toast.LENGTH_SHORT).show()
-                    }
+                        val sendIntent = Intent(Intent.ACTION_SEND).apply {
+                            type = "text/plain"
+                            putExtra(Intent.EXTRA_TEXT, post.content)
+                        }
+                        context.startActivity(Intent.createChooser(sendIntent, EchoStrings.get("share", language)))
+                    },
+                    onComments = { onOpenComments(post.id) }
                 )
             }
         }
+    }
+
+    if (showCreateStoryDialog) {
+        AlertDialog(
+            onDismissRequest = { showCreateStoryDialog = false },
+            title = { Text(EchoStrings.get("create_story_title", language)) },
+            text = {
+                OutlinedTextField(
+                    value = newStoryText,
+                    onValueChange = { newStoryText = it },
+                    label = { Text(EchoStrings.get("story_text_hint", language)) },
+                    modifier = Modifier.fillMaxWidth(),
+                    minLines = 2,
+                    maxLines = 5
+                )
+            },
+            confirmButton = {
+                Button(
+                    enabled = newStoryText.isNotBlank(),
+                    onClick = {
+                        onCreateStory(newStoryText.trim())
+                        showCreateStoryDialog = false
+                    }
+                ) { Text(EchoStrings.get("publish_story", language)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showCreateStoryDialog = false }) {
+                    Text(EchoStrings.get("cancel", language))
+                }
+            }
+        )
+    }
+
+    selectedStory?.let { story ->
+        AlertDialog(
+            onDismissRequest = { selectedStory = null },
+            title = { Text(story.authorName) },
+            text = { Text(story.storyTitle) },
+            confirmButton = {
+                TextButton(onClick = { selectedStory = null }) {
+                    Text(EchoStrings.get("close", language))
+                }
+            }
+        )
     }
 }
 
@@ -270,6 +322,7 @@ fun PostCard(
     onLike: () -> Unit,
     onBookmark: () -> Unit,
     onShare: () -> Unit,
+    onComments: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val timeFormatted = remember(post.timestamp) {
@@ -405,7 +458,7 @@ fun PostCard(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier
                         .clip(RoundedCornerShape(8.dp))
-                        .clickable { /* open comments */ }
+                        .clickable { onComments() }
                         .padding(horizontal = 8.dp, vertical = 4.dp)
                 ) {
                     Icon(

@@ -5,6 +5,7 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import com.example.data.model.ChannelEntity
+import com.example.data.model.CommentEntity
 import com.example.data.model.MessageEntity
 import com.example.data.model.PostEntity
 import com.example.data.model.StoryEntity
@@ -74,8 +75,22 @@ interface EchoChatDao {
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertPosts(posts: List<PostEntity>)
 
-    @Query("UPDATE social_posts SET isLiked = :isLiked, likesCount = :likesCount WHERE id = :postId")
-    suspend fun updatePostLike(postId: String, isLiked: Boolean, likesCount: Int)
+    @Query("""
+        UPDATE social_posts
+        SET isLiked = CASE WHEN isLiked = 1 THEN 0 ELSE 1 END,
+            likesCount = CASE WHEN isLiked = 1 THEN MAX(likesCount - 1, 0) ELSE likesCount + 1 END
+        WHERE id = :postId
+    """)
+    suspend fun togglePostLike(postId: String)
+
+    @Query("SELECT * FROM social_posts WHERE id = :postId LIMIT 1")
+    suspend fun getPostById(postId: String): PostEntity?
+
+    @Query("SELECT COUNT(*) FROM social_posts WHERE authorId = :authorId")
+    suspend fun countPostsByAuthor(authorId: String): Int
+
+    @Query("UPDATE social_posts SET commentsCount = :count WHERE id = :postId")
+    suspend fun updatePostCommentCount(postId: String, count: Int)
 
     @Query("UPDATE social_posts SET isBookmarked = :isBookmarked WHERE id = :postId")
     suspend fun updatePostBookmark(postId: String, isBookmarked: Boolean)
@@ -90,12 +105,34 @@ interface EchoChatDao {
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertStories(stories: List<StoryEntity>)
 
+    @Insert(onConflict = OnConflictStrategy.ABORT)
+    suspend fun insertStory(story: StoryEntity)
+
     @Query("UPDATE user_stories SET isViewed = 1 WHERE id = :storyId")
     suspend fun markStoryViewed(storyId: String)
+
+    // --- Comments ---
+    @Query("SELECT * FROM post_comments WHERE postId = :postId ORDER BY timestamp ASC")
+    fun getCommentsForPost(postId: String): Flow<List<CommentEntity>>
+
+    @Query("SELECT * FROM post_comments WHERE id = :commentId LIMIT 1")
+    suspend fun getCommentById(commentId: String): CommentEntity?
+
+    @Insert(onConflict = OnConflictStrategy.ABORT)
+    suspend fun insertComment(comment: CommentEntity)
+
+    @Query("DELETE FROM post_comments WHERE id = :commentId")
+    suspend fun deleteComment(commentId: String)
+
+    @Query("SELECT COUNT(*) FROM post_comments WHERE postId = :postId")
+    suspend fun countCommentsForPost(postId: String): Int
 
     // --- Profile ---
     @Query("SELECT * FROM user_profile WHERE userId = 'me' LIMIT 1")
     fun getUserProfile(): Flow<UserProfileEntity?>
+
+    @Query("SELECT * FROM user_profile WHERE userId = 'me' LIMIT 1")
+    suspend fun getUserProfileOnce(): UserProfileEntity?
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertOrUpdateProfile(profile: UserProfileEntity)

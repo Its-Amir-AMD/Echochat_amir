@@ -1,9 +1,10 @@
 package com.example.data.model
 
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.PrimaryKey
 
-@Entity(tableName = "channels")
+@Entity(tableName = "channels", indices = [Index(value = ["lastMessageTime"])])
 data class ChannelEntity(
     @PrimaryKey val id: String,
     val name: String,
@@ -18,7 +19,7 @@ data class ChannelEntity(
     val createdAt: Long = System.currentTimeMillis()
 )
 
-@Entity(tableName = "messages")
+@Entity(tableName = "messages", indices = [Index(value = ["channelId", "timestamp"])])
 data class MessageEntity(
     @PrimaryKey val id: String,
     val channelId: String,
@@ -42,12 +43,12 @@ data class UserProfileEntity(
     val avatarColor: Long = 0xFF4F46E5,
     val languageCode: String = "fa",
     val isDarkMode: Boolean? = null,
-    val postsCount: Int = 8,
-    val followersCount: Int = 1420,
-    val followingCount: Int = 385
+    val postsCount: Int = 0,
+    val followersCount: Int = 0,
+    val followingCount: Int = 0
 )
 
-@Entity(tableName = "social_posts")
+@Entity(tableName = "social_posts", indices = [Index(value = ["category", "timestamp"]), Index(value = ["authorId", "timestamp"])])
 data class PostEntity(
     @PrimaryKey val id: String,
     val authorId: String,
@@ -66,12 +67,26 @@ data class PostEntity(
     val cardColor: Long = 0xFF1E293B
 )
 
-@Entity(tableName = "user_stories")
+@Entity(tableName = "user_stories", indices = [Index(value = ["timestamp"])])
 data class StoryEntity(
     @PrimaryKey val id: String,
     val authorName: String,
     val authorAvatarColor: Long = 0xFF4F46E5,
     val storyTitle: String,
     val isViewed: Boolean = false,
+    val timestamp: Long = System.currentTimeMillis()
+)
+
+@Entity(
+    tableName = "post_comments",
+    indices = [Index(value = ["postId", "timestamp"])]
+)
+data class CommentEntity(
+    @PrimaryKey val id: String,
+    val postId: String,
+    val authorId: String,
+    val authorName: String,
+    val authorAvatarColor: Long = 0xFF4F46E5,
+    val content: String,
     val timestamp: Long = System.currentTimeMillis()
 )

@@ -1,6 +1,6 @@
 package com.example.ai
 
-import com.google.firebase.Firebase
+import com.google.firebase.FirebaseApp
 import com.google.firebase.ai.FirebaseAI
 import com.google.firebase.ai.type.GenerativeBackend
 import kotlinx.coroutines.Dispatchers
@@ -19,7 +19,7 @@ class EchoAiService {
         }
 
         val model = FirebaseAI.getInstance(
-            Firebase.app,
+            FirebaseApp.getInstance(),
             GenerativeBackend.googleAI()
         ).generativeModel(MODEL_NAME)
         val response = model.generateContent(

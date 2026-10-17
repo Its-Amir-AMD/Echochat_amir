@@ -91,9 +91,11 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.data.model.ChannelEntity
 import com.example.data.model.MessageEntity
+import com.example.data.model.PostEntity
 import com.example.ui.EchoChatViewModel
 import com.example.ui.components.ChannelListItem
 import com.example.ui.components.CreateChannelDialog
+import com.example.ui.components.CommentsDialog
 import com.example.ui.components.MessageBubble
 import com.example.ui.components.MessageInputBar
 import com.example.ui.components.ProfileAndSettingsSheet
@@ -133,6 +135,7 @@ fun MainScreen(
     var showCreateChannelDialog by remember { mutableStateOf(false) }
     var showStartDmDialog by remember { mutableStateOf(false) }
     var showCreatePostDialog by remember { mutableStateOf(false) }
+    var selectedPostForComments by remember { mutableStateOf<PostEntity?>(null) }
     var showProfileSheet by remember { mutableStateOf(false) }
     var showOptionsMenu by remember { mutableStateOf(false) }
     var inputText by remember { mutableStateOf("") }
@@ -314,7 +317,9 @@ fun MainScreen(
                                 onLikePost = { id, liked, count -> viewModel.toggleLikePost(id, liked, count) },
                                 onBookmarkPost = { id, bookmarked -> viewModel.toggleBookmarkPost(id, bookmarked) },
                                 onStoryClick = { viewModel.markStoryViewed(it) },
-                                onCreatePostClick = { showCreatePostDialog = true }
+                                onCreatePostClick = { showCreatePostDialog = true },
+                                onCreateStory = { viewModel.createStory(it) },
+                                onCommentsClick = { selectedPostForComments = it }
                             )
                         }
                         2 -> {
@@ -322,7 +327,8 @@ fun MainScreen(
                                 savedPosts = savedPosts,
                                 language = currentLanguage,
                                 onLikePost = { id, liked, count -> viewModel.toggleLikePost(id, liked, count) },
-                                onBookmarkPost = { id, bookmarked -> viewModel.toggleBookmarkPost(id, bookmarked) }
+                                onBookmarkPost = { id, bookmarked -> viewModel.toggleBookmarkPost(id, bookmarked) },
+                                onCommentsClick = { selectedPostForComments = it }
                             )
                         }
                         3 -> {
@@ -336,7 +342,8 @@ fun MainScreen(
                                 onToggleTheme = { viewModel.toggleTheme() },
                                 onClearChat = { viewModel.clearChat() },
                                 onLikePost = { id, liked, count -> viewModel.toggleLikePost(id, liked, count) },
-                                onBookmarkPost = { id, bookmarked -> viewModel.toggleBookmarkPost(id, bookmarked) }
+                                onBookmarkPost = { id, bookmarked -> viewModel.toggleBookmarkPost(id, bookmarked) },
+                                onCommentsClick = { selectedPostForComments = it }
                             )
                         }
                     }
@@ -414,7 +421,9 @@ fun MainScreen(
                                 onLikePost = { id, liked, count -> viewModel.toggleLikePost(id, liked, count) },
                                 onBookmarkPost = { id, bookmarked -> viewModel.toggleBookmarkPost(id, bookmarked) },
                                 onStoryClick = { viewModel.markStoryViewed(it) },
-                                onCreatePostClick = { showCreatePostDialog = true }
+                                onCreatePostClick = { showCreatePostDialog = true },
+                                onCreateStory = { viewModel.createStory(it) },
+                                onCommentsClick = { selectedPostForComments = it }
                             )
                         }
                         2 -> {
@@ -422,7 +431,8 @@ fun MainScreen(
                                 savedPosts = savedPosts,
                                 language = currentLanguage,
                                 onLikePost = { id, liked, count -> viewModel.toggleLikePost(id, liked, count) },
-                                onBookmarkPost = { id, bookmarked -> viewModel.toggleBookmarkPost(id, bookmarked) }
+                                onBookmarkPost = { id, bookmarked -> viewModel.toggleBookmarkPost(id, bookmarked) },
+                                onCommentsClick = { selectedPostForComments = it }
                             )
                         }
                         3 -> {
@@ -436,7 +446,8 @@ fun MainScreen(
                                 onToggleTheme = { viewModel.toggleTheme() },
                                 onClearChat = { viewModel.clearChat() },
                                 onLikePost = { id, liked, count -> viewModel.toggleLikePost(id, liked, count) },
-                                onBookmarkPost = { id, bookmarked -> viewModel.toggleBookmarkPost(id, bookmarked) }
+                                onBookmarkPost = { id, bookmarked -> viewModel.toggleBookmarkPost(id, bookmarked) },
+                                onCommentsClick = { selectedPostForComments = it }
                             )
                         }
                     }
@@ -491,6 +502,15 @@ fun MainScreen(
             onToggleLanguage = { viewModel.toggleLanguage() },
             onToggleTheme = { viewModel.toggleTheme() },
             sheetState = sheetState
+        )
+    }
+
+    selectedPostForComments?.let { post ->
+        CommentsDialog(
+            post = post,
+            viewModel = viewModel,
+            language = currentLanguage,
+            onDismiss = { selectedPostForComments = null }
         )
     }
 }
@@ -629,8 +649,7 @@ fun EchoTopAppBar(
                         overflow = TextOverflow.Ellipsis
                     )
                     Text(
-                        text = if (activeChannel.isDirectMessage) EchoStrings.get("online", currentLanguage)
-                        else activeChannel.description,
+                        text = activeChannel.description,
                         style = MaterialTheme.typography.bodySmall,
                         color = if (activeChannel.isDirectMessage) Color(0xFF10B981)
                         else MaterialTheme.colorScheme.onSurfaceVariant,
@@ -865,12 +884,11 @@ fun ChatRoomContent(
                         modifier = Modifier
                             .size(10.dp)
                             .clip(CircleShape)
-                            .background(Color(0xFF10B981))
+                            .background(MaterialTheme.colorScheme.outline)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = if (activeChannel.isDirectMessage) "گفتگوی زنده با ${activeChannel.name}"
-                        else "کانال فعال: ${activeChannel.name} • ${activeChannel.description}",
+                        text = if (activeChannel.isDirectMessage) activeChannel.name else activeChannel.description,
                         fontSize = 12.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,

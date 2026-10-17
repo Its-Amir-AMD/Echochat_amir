@@ -90,6 +90,15 @@ object EchoStrings {
         "bookmarked" to "ذخیره شد",
         "shared_toast" to "لینک پست در کلیپ‌بورد کپی شد",
         "no_posts_yet" to "هنوز پستی در این بخش ثبت نشده است. اولین پست را ایجاد کنید!",
+        "comments_title" to "دیدگاه‌ها",
+        "comment_hint" to "دیدگاه خود را بنویسید...",
+        "send_comment" to "ارسال دیدگاه",
+        "no_comments" to "هنوز دیدگاهی ثبت نشده است.",
+        "new_story_title" to "استوری جدید",
+        "story_content_hint" to "متن استوری را بنویسید...",
+        "publish_story" to "انتشار استوری",
+        "view_story" to "مشاهده استوری",
+        "cancel" to "لغو",
         "saved_posts_title" to "پست‌های ذخیره‌شده و نشان‌ها",
         "no_saved_posts" to "هیچ پستی ذخیره نشده است. با زدن علامت نشان، پست‌ها را اینجا ببینید."
     )
@@ -176,6 +185,15 @@ object EchoStrings {
         "bookmarked" to "Saved",
         "shared_toast" to "Post link copied to clipboard",
         "no_posts_yet" to "No posts in this category yet. Be the first to share!",
+        "comments_title" to "Comments",
+        "comment_hint" to "Write a comment...",
+        "send_comment" to "Send comment",
+        "no_comments" to "No comments yet.",
+        "new_story_title" to "New story",
+        "story_content_hint" to "Write your story...",
+        "publish_story" to "Publish story",
+        "view_story" to "View story",
+        "cancel" to "Cancel",
         "saved_posts_title" to "Saved & Bookmarked Posts",
         "no_saved_posts" to "No saved posts yet. Tap the bookmark icon on any post to save it here."
     )

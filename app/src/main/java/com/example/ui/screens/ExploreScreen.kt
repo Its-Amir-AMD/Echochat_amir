@@ -1,9 +1,6 @@
 package com.example.ui.screens
 
-import android.content.ClipData
-import android.content.ClipboardManager
 import android.content.Context
-import android.widget.Toast
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
@@ -70,6 +67,7 @@ import com.example.data.model.PostEntity
 import com.example.data.model.StoryEntity
 import com.example.util.AppLanguage
 import com.example.util.EchoStrings
+import com.example.util.shareText
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -85,9 +83,13 @@ fun ExploreScreen(
     onBookmarkPost: (String, Boolean) -> Unit,
     onStoryClick: (String) -> Unit,
     onCreatePostClick: () -> Unit,
+    onCreateStory: (String) -> Unit = {},
+    onCommentsClick: (PostEntity) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    var showCreateStoryDialog by remember { mutableStateOf(false) }
+    var selectedStory by remember { mutableStateOf<StoryEntity?>(null) }
 
     val categories = listOf(
         "all" to EchoStrings.get("filter_all", language),
@@ -122,7 +124,7 @@ fun ExploreScreen(
                         Column(
                             horizontalAlignment = Alignment.CenterHorizontally,
                             modifier = Modifier.clickable {
-                                Toast.makeText(context, "استوری جدید به زودی فعال می‌شود", Toast.LENGTH_SHORT).show()
+                                showCreateStoryDialog = true
                             }
                         ) {
                             Box(
@@ -166,7 +168,7 @@ fun ExploreScreen(
                             modifier = Modifier
                                 .clickable {
                                     onStoryClick(story.id)
-                                    Toast.makeText(context, story.storyTitle, Toast.LENGTH_SHORT).show()
+                                    selectedStory = story
                                 }
                                 .testTag("story_item_${story.id}")
                         ) {
@@ -253,14 +255,71 @@ fun ExploreScreen(
                     onLike = { onLikePost(post.id, post.isLiked, post.likesCount) },
                     onBookmark = { onBookmarkPost(post.id, post.isBookmarked) },
                     onShare = {
-                        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                        clipboard.setPrimaryClip(ClipData.newPlainText("EchoPost", post.content))
-                        Toast.makeText(context, EchoStrings.get("shared_toast", language), Toast.LENGTH_SHORT).show()
-                    }
+                        shareText(context, post.content, EchoStrings.get("share", language))
+                    },
+                    onCommentClick = { onCommentsClick(post) }
                 )
             }
         }
     }
+
+    if (showCreateStoryDialog) {
+        CreateStoryDialog(
+            language = language,
+            onDismiss = { showCreateStoryDialog = false },
+            onPublish = { text ->
+                onCreateStory(text)
+                showCreateStoryDialog = false
+            }
+        )
+    }
+
+    selectedStory?.let { story ->
+        AlertDialog(
+            onDismissRequest = { selectedStory = null },
+            title = { Text("${story.authorName} · ${EchoStrings.get("view_story", language)}") },
+            text = { Text(story.storyTitle, style = MaterialTheme.typography.bodyLarge) },
+            confirmButton = {
+                TextButton(onClick = { selectedStory = null }) {
+                    Text(EchoStrings.get("cancel", language))
+                }
+            }
+        )
+    }
+}
+
+@Composable
+private fun CreateStoryDialog(
+    language: AppLanguage,
+    onDismiss: () -> Unit,
+    onPublish: (String) -> Unit
+) {
+    var content by remember { mutableStateOf("") }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(EchoStrings.get("new_story_title", language)) },
+        text = {
+            OutlinedTextField(
+                value = content,
+                onValueChange = { if (it.length <= 500) content = it },
+                placeholder = { Text(EchoStrings.get("story_content_hint", language)) },
+                modifier = Modifier.fillMaxWidth(),
+                minLines = 3,
+                maxLines = 6
+            )
+        },
+        confirmButton = {
+            Button(
+                onClick = { if (content.isNotBlank()) onPublish(content.trim()) },
+                enabled = content.isNotBlank()
+            ) {
+                Text(EchoStrings.get("publish_story", language))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(EchoStrings.get("cancel", language)) }
+        }
+    )
 }
 
 @Composable
@@ -270,6 +329,7 @@ fun PostCard(
     onLike: () -> Unit,
     onBookmark: () -> Unit,
     onShare: () -> Unit,
+    onCommentClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val timeFormatted = remember(post.timestamp) {
@@ -405,7 +465,7 @@ fun PostCard(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier
                         .clip(RoundedCornerShape(8.dp))
-                        .clickable { /* open comments */ }
+                        .clickable { onCommentClick() }
                         .padding(horizontal = 8.dp, vertical = 4.dp)
                 ) {
                     Icon(

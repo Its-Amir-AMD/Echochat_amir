@@ -1,9 +1,6 @@
 package com.example.ui.screens
 
-import android.content.ClipData
-import android.content.ClipboardManager
 import android.content.Context
-import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -52,6 +49,7 @@ import com.example.data.model.PostEntity
 import com.example.data.model.UserProfileEntity
 import com.example.util.AppLanguage
 import com.example.util.EchoStrings
+import com.example.util.shareText
 
 @Composable
 fun ProfileScreen(
@@ -65,6 +63,7 @@ fun ProfileScreen(
     onClearChat: () -> Unit,
     onLikePost: (String, Boolean, Int) -> Unit,
     onBookmarkPost: (String, Boolean) -> Unit,
+    onCommentsClick: (PostEntity) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -128,38 +127,18 @@ fun ProfileScreen(
 
                     Spacer(modifier = Modifier.height(18.dp))
 
-                    // Social Stats Row (Posts, Followers, Following)
+                    // Display only the post count backed by real local records.
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(14.dp))
                             .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
                             .padding(vertical = 12.dp),
-                        horizontalArrangement = Arrangement.SpaceEvenly
+                        horizontalArrangement = Arrangement.Center
                     ) {
                         StatItem(
-                            count = effectiveProfile.postsCount.toString(),
+                            count = userPosts.count { it.authorId == "me" }.toString(),
                             label = EchoStrings.get("stats_posts", language)
-                        )
-                        Box(
-                            modifier = Modifier
-                                .width(1.dp)
-                                .height(32.dp)
-                                .background(MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
-                        )
-                        StatItem(
-                            count = "${effectiveProfile.followersCount}+",
-                            label = EchoStrings.get("stats_followers", language)
-                        )
-                        Box(
-                            modifier = Modifier
-                                .width(1.dp)
-                                .height(32.dp)
-                                .background(MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
-                        )
-                        StatItem(
-                            count = effectiveProfile.followingCount.toString(),
-                            label = EchoStrings.get("stats_following", language)
                         )
                     }
 
@@ -252,7 +231,7 @@ fun ProfileScreen(
             )
         }
 
-        val myPosts = userPosts.filter { it.authorId == "me" || it.authorId.startsWith("user_") }
+        val myPosts = userPosts.filter { it.authorId == "me" }
         if (myPosts.isEmpty()) {
             item {
                 Box(
@@ -275,11 +254,8 @@ fun ProfileScreen(
                     language = language,
                     onLike = { onLikePost(post.id, post.isLiked, post.likesCount) },
                     onBookmark = { onBookmarkPost(post.id, post.isBookmarked) },
-                    onShare = {
-                        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                        clipboard.setPrimaryClip(ClipData.newPlainText("EchoPost", post.content))
-                        Toast.makeText(context, EchoStrings.get("shared_toast", language), Toast.LENGTH_SHORT).show()
-                    }
+                    onShare = { shareText(context, post.content, EchoStrings.get("share", language)) },
+                    onCommentClick = { onCommentsClick(post) }
                 )
             }
         }

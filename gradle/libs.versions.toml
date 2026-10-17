@@ -35,7 +35,7 @@ moshiKotlin = "1.15.2"
 moshiKotlinCodegen = "1.15.2"
 datastorePreferences = "1.1.7"
 robolectric = "4.16.1"
-firebaseBom = "34.17.0"
+firebaseBom = "35.0.1"
 secretsGradlePlugin = "2.0.1"
 googleServices = "4.5.0"
 credentials = "1.5.0"
@@ -89,6 +89,7 @@ firebase-bom = { group = "com.google.firebase", name = "firebase-bom", version.r
 firebase-ai = { group = "com.google.firebase", name = "firebase-ai" }
 firebase-appcheck-recaptcha = { group = "com.google.firebase", name = "firebase-appcheck-recaptcha" }
 firebase-appcheck-debug = { group = "com.google.firebase", name = "firebase-appcheck-debug" }
+firebase-appcheck-playintegrity = { group = "com.google.firebase", name = "firebase-appcheck-playintegrity" }
 firebase-firestore = { group = "com.google.firebase", name = "firebase-firestore" }
 firebase-auth = { group = "com.google.firebase", name = "firebase-auth" }
 androidx-credentials = { group = "androidx.credentials", name = "credentials", version.ref = "credentials" }

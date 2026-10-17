@@ -141,7 +141,7 @@ class EchoChatRepository(
             description = description,
             iconName = iconName,
             isDirectMessage = false,
-            lastMessage = "کانال جدید ایجاد شد",
+            lastMessage = "",
             lastMessageTime = System.currentTimeMillis(),
             createdAt = System.currentTimeMillis()
         )
@@ -158,7 +158,7 @@ class EchoChatRepository(
             isDirectMessage = true,
             peerName = peerName,
             peerAvatarColor = peerAvatarColor,
-            lastMessage = "گفتگو آغاز شد",
+            lastMessage = "",
             lastMessageTime = System.currentTimeMillis(),
             createdAt = System.currentTimeMillis()
         )

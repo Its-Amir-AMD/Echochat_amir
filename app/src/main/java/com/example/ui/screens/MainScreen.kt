@@ -9,6 +9,8 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -21,6 +23,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -49,6 +52,7 @@ import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Card
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -67,6 +71,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.ScrollableTabRow
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Tab
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
@@ -84,6 +89,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -112,6 +118,8 @@ fun MainScreen(
     modifier: Modifier = Modifier
 ) {
     val channels by viewModel.filteredChannels.collectAsStateWithLifecycle()
+    val allChannels by viewModel.channels.collectAsStateWithLifecycle()
+    val searchedMessages by viewModel.searchedMessages.collectAsStateWithLifecycle()
     val activeChannel by viewModel.activeChannel.collectAsStateWithLifecycle()
     val messages by viewModel.messages.collectAsStateWithLifecycle()
     val selectedChannelId by viewModel.selectedChannelId.collectAsStateWithLifecycle()
@@ -136,6 +144,7 @@ fun MainScreen(
     var showStartDmDialog by remember { mutableStateOf(false) }
     var showCreatePostDialog by remember { mutableStateOf(false) }
     var selectedPostForComments by remember { mutableStateOf<PostEntity?>(null) }
+    var showMessageSearchResults by remember { mutableStateOf(false) }
     var showProfileSheet by remember { mutableStateOf(false) }
     var showOptionsMenu by remember { mutableStateOf(false) }
     var inputText by remember { mutableStateOf("") }
@@ -170,6 +179,7 @@ fun MainScreen(
                     onToggleTheme = { viewModel.toggleTheme() },
                     onSearchClick = { viewModel.toggleSearch(true) },
                     onSearchQueryChange = { viewModel.setSearchQuery(it) },
+                    onSearchSubmit = { if (searchQuery.isNotBlank()) showMessageSearchResults = true },
                     onCloseSearch = { viewModel.toggleSearch(false) },
                     onOpenProfile = { showProfileSheet = true },
                     onClearChat = { viewModel.clearChat() }
@@ -505,6 +515,58 @@ fun MainScreen(
         )
     }
 
+    if (showMessageSearchResults) {
+        AlertDialog(
+            onDismissRequest = { showMessageSearchResults = false },
+            title = { Text(EchoStrings.get("message_search_results_title", currentLanguage)) },
+            text = {
+                if (searchedMessages.isEmpty()) {
+                    Text(
+                        EchoStrings.get("no_message_results", currentLanguage),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                } else {
+                    LazyColumn(modifier = Modifier.heightIn(max = 360.dp)) {
+                        items(searchedMessages, key = { it.id }) { message ->
+                            val channelName = allChannels.firstOrNull { it.id == message.channelId }?.name
+                                ?: message.channelId
+                            TextButton(
+                                onClick = {
+                                    viewModel.selectChannel(message.channelId)
+                                    viewModel.setMainTab(0)
+                                    viewModel.toggleSearch(false)
+                                    showMessageSearchResults = false
+                                    isViewingChatRoomOnCompact = true
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Column(modifier = Modifier.fillMaxWidth()) {
+                                    Text(
+                                        channelName,
+                                        fontWeight = FontWeight.SemiBold,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    Text(message.content, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                                    Text(
+                                        message.senderName,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showMessageSearchResults = false }) {
+                    Text(EchoStrings.get("close", currentLanguage))
+                }
+            }
+        )
+    }
+
     selectedPostForComments?.let { post ->
         CommentsDialog(
             post = post,
@@ -573,6 +635,7 @@ fun EchoTopAppBar(
     onToggleTheme: () -> Unit,
     onSearchClick: () -> Unit,
     onSearchQueryChange: (String) -> Unit,
+    onSearchSubmit: () -> Unit,
     onCloseSearch: () -> Unit,
     onOpenProfile: () -> Unit,
     onClearChat: () -> Unit
@@ -633,9 +696,19 @@ fun EchoTopAppBar(
                         focusedBorderColor = MaterialTheme.colorScheme.primary
                     ),
                     singleLine = true,
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                    keyboardActions = KeyboardActions(onSearch = { onSearchSubmit() }),
                     trailingIcon = {
-                        IconButton(onClick = onCloseSearch) {
-                            Icon(Icons.Default.Close, contentDescription = "Close search")
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            IconButton(onClick = onSearchSubmit) {
+                                Icon(
+                                    Icons.Default.Search,
+                                    contentDescription = EchoStrings.get("search_messages", currentLanguage)
+                                )
+                            }
+                            IconButton(onClick = onCloseSearch) {
+                                Icon(Icons.Default.Close, contentDescription = "Close search")
+                            }
                         }
                     }
                 )

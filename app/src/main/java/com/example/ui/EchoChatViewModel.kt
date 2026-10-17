@@ -22,6 +22,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -97,6 +98,13 @@ class EchoChatViewModel(application: Application) : AndroidViewModel(application
     // Messages for active channel
     val messages: StateFlow<List<MessageEntity>> = _selectedChannelId
         .flatMapLatest { id -> repository.getMessagesForChannel(id) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    // Search messages across every locally stored conversation.
+    val searchedMessages: StateFlow<List<MessageEntity>> = _searchQuery
+        .flatMapLatest { query ->
+            if (query.isBlank()) flowOf(emptyList()) else repository.searchMessages(query.trim())
+        }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     // Typing user indicator for active channel

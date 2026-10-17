@@ -34,7 +34,7 @@ jobs:
       - name: Configure Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      - name: Run unit tests, lint, and debug build
+      - name: Run unit tests, lint and debug build
         run: bash ./gradlew --no-daemon testDebugUnitTest lintDebug assembleDebug
 
       - name: Upload debug APK

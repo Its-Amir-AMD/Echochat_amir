@@ -31,5 +31,9 @@ class EchoChatLocalizationTest {
         assertNotNull(EchoStrings.get("send", AppLanguage.ENGLISH))
         assertNotNull(EchoStrings.get("tab_channels", AppLanguage.PERSIAN))
         assertNotNull(EchoStrings.get("tab_channels", AppLanguage.ENGLISH))
+        assertEquals("نتایج جستجوی پیام‌ها", EchoStrings.get("message_search_results_title", AppLanguage.PERSIAN))
+        assertEquals("Message search results", EchoStrings.get("message_search_results_title", AppLanguage.ENGLISH))
+        assertEquals("استوری من", EchoStrings.get("my_story", AppLanguage.PERSIAN))
+        assertEquals("My story", EchoStrings.get("my_story", AppLanguage.ENGLISH))
     }
 }

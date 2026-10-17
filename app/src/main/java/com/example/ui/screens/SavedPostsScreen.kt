@@ -1,9 +1,7 @@
 package com.example.ui.screens
 
-import android.content.ClipData
-import android.content.ClipboardManager
 import android.content.Context
-import android.widget.Toast
+import android.content.Intent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -38,7 +36,8 @@ fun SavedPostsScreen(
     language: AppLanguage,
     onLikePost: (String, Boolean, Int) -> Unit,
     onBookmarkPost: (String, Boolean) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onOpenComments: (String) -> Unit = {}
 ) {
     val context = LocalContext.current
 
@@ -88,11 +87,14 @@ fun SavedPostsScreen(
                         language = language,
                         onLike = { onLikePost(post.id, post.isLiked, post.likesCount) },
                         onBookmark = { onBookmarkPost(post.id, post.isBookmarked) },
+                        onComments = { onOpenComments(post.id) },
                         onShare = {
-                            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                            clipboard.setPrimaryClip(ClipData.newPlainText("EchoPost", post.content))
-                            Toast.makeText(context, EchoStrings.get("shared_toast", language), Toast.LENGTH_SHORT).show()
+                        val sendIntent = Intent(Intent.ACTION_SEND).apply {
+                            type = "text/plain"
+                            putExtra(Intent.EXTRA_TEXT, post.content)
                         }
+                        context.startActivity(Intent.createChooser(sendIntent, EchoStrings.get("share", language)))
+                    }
                     )
                 }
             }

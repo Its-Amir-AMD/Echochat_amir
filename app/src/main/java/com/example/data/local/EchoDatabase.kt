@@ -143,7 +143,7 @@ abstract class EchoDatabase : RoomDatabase() {
                 ChannelEntity(
                     id = "bot_echo",
                     name = "دستیار هوشمند اکو / Echo Bot",
-                    description = "پاسخگوی سریع، بازتاب پیام‌ها و دستیار گفتگو",
+                    description = "گفتگوی آزمایشی؛ اتصال هوش مصنوعی تنظیم نشده است",
                     iconName = "smart_toy",
                     isDirectMessage = true,
                     peerName = "Echo Assistant",
@@ -219,7 +219,7 @@ abstract class EchoDatabase : RoomDatabase() {
                     senderId = "bot_echo",
                     senderName = "Echo Assistant",
                     senderAvatarColor = 0xFF6366F1,
-                    content = "سلام! من دستیار هوشمند اکو هستم. هر پیامی بفرستید فوراً پاسخ می‌دهم ✨",
+                    content = "این گفتگوی آزمایشی است؛ برای پاسخ هوشمند باید سرویس هوش مصنوعی پیکربندی شود.",
                     timestamp = now,
                     isOutgoing = false,
                     status = "read"

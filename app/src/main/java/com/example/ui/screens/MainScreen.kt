@@ -338,7 +338,12 @@ fun MainScreen(
                                 savedPosts = savedPosts,
                                 language = currentLanguage,
                                 onLikePost = { id, liked, count -> viewModel.toggleLikePost(id, liked, count) },
-                                onBookmarkPost = { id, bookmarked -> viewModel.toggleBookmarkPost(id, bookmarked) }
+                                onBookmarkPost = { id, bookmarked -> viewModel.toggleBookmarkPost(id, bookmarked) },
+                                onOpenComments = { postId ->
+                                    commentInput = ""
+                                    viewModel.openComments(postId)
+                                    showCommentsDialog = true
+                                }
                             )
                         }
                         3 -> {
@@ -352,7 +357,12 @@ fun MainScreen(
                                 onToggleTheme = { viewModel.toggleTheme() },
                                 onClearChat = { viewModel.clearChat() },
                                 onLikePost = { id, liked, count -> viewModel.toggleLikePost(id, liked, count) },
-                                onBookmarkPost = { id, bookmarked -> viewModel.toggleBookmarkPost(id, bookmarked) }
+                                onBookmarkPost = { id, bookmarked -> viewModel.toggleBookmarkPost(id, bookmarked) },
+                                onOpenComments = { postId ->
+                                    commentInput = ""
+                                    viewModel.openComments(postId)
+                                    showCommentsDialog = true
+                                }
                             )
                         }
                     }
@@ -444,7 +454,12 @@ fun MainScreen(
                                 savedPosts = savedPosts,
                                 language = currentLanguage,
                                 onLikePost = { id, liked, count -> viewModel.toggleLikePost(id, liked, count) },
-                                onBookmarkPost = { id, bookmarked -> viewModel.toggleBookmarkPost(id, bookmarked) }
+                                onBookmarkPost = { id, bookmarked -> viewModel.toggleBookmarkPost(id, bookmarked) },
+                                onOpenComments = { postId ->
+                                    commentInput = ""
+                                    viewModel.openComments(postId)
+                                    showCommentsDialog = true
+                                }
                             )
                         }
                         3 -> {
@@ -458,7 +473,12 @@ fun MainScreen(
                                 onToggleTheme = { viewModel.toggleTheme() },
                                 onClearChat = { viewModel.clearChat() },
                                 onLikePost = { id, liked, count -> viewModel.toggleLikePost(id, liked, count) },
-                                onBookmarkPost = { id, bookmarked -> viewModel.toggleBookmarkPost(id, bookmarked) }
+                                onBookmarkPost = { id, bookmarked -> viewModel.toggleBookmarkPost(id, bookmarked) },
+                                onOpenComments = { postId ->
+                                    commentInput = ""
+                                    viewModel.openComments(postId)
+                                    showCommentsDialog = true
+                                }
                             )
                         }
                     }

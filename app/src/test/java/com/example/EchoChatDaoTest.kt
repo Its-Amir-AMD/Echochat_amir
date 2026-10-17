@@ -54,15 +54,13 @@ class EchoChatDaoTest {
         )
 
         dao.togglePostLike("post-test")
-        val liked = dao.getPostById("post-test")
-        assertNotNull(liked)
-        assertTrue(requireNotNull(liked).isLiked)
+        val liked = requireNotNull(dao.getPostById("post-test"))
+        assertTrue(liked.isLiked)
         assertEquals(1, liked.likesCount)
 
         dao.togglePostLike("post-test")
-        val unliked = dao.getPostById("post-test")
-        assertNotNull(unliked)
-        assertFalse(requireNotNull(unliked).isLiked)
+        val unliked = requireNotNull(dao.getPostById("post-test"))
+        assertFalse(unliked.isLiked)
         assertEquals(0, unliked.likesCount)
 
         dao.togglePostLike("post-test")

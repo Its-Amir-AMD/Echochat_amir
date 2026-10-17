@@ -4,7 +4,7 @@ import androidx.room.Entity
 import androidx.room.PrimaryKey
 import androidx.room.Index
 
-@Entity(tableName = "channels")
+@Entity(tableName = "channels", indices = [Index(value = ["lastMessageTime"])])
 data class ChannelEntity(
     @PrimaryKey val id: String,
     val name: String,
@@ -19,7 +19,7 @@ data class ChannelEntity(
     val createdAt: Long = System.currentTimeMillis()
 )
 
-@Entity(tableName = "messages")
+@Entity(tableName = "messages", indices = [Index(value = ["channelId", "timestamp"])])
 data class MessageEntity(
     @PrimaryKey val id: String,
     val channelId: String,
@@ -48,7 +48,7 @@ data class UserProfileEntity(
     val followingCount: Int = 0
 )
 
-@Entity(tableName = "social_posts")
+@Entity(tableName = "social_posts", indices = [Index(value = ["category", "timestamp"]), Index(value = ["authorId", "timestamp"])])
 data class PostEntity(
     @PrimaryKey val id: String,
     val authorId: String,
@@ -77,7 +77,7 @@ data class CommentEntity(
     val timestamp: Long = System.currentTimeMillis()
 )
 
-@Entity(tableName = "user_stories")
+@Entity(tableName = "user_stories", indices = [Index(value = ["timestamp"])])
 data class StoryEntity(
     @PrimaryKey val id: String,
     val authorName: String,

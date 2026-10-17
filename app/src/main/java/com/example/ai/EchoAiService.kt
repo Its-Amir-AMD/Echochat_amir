@@ -1,7 +1,6 @@
 package com.example.ai
 
-import com.google.firebase.Firebase
-import com.google.firebase.ai.ai
+import com.google.firebase.ai.FirebaseAI
 import com.google.firebase.ai.type.GenerativeBackend
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -18,7 +17,7 @@ class EchoAiService {
             "Prompt is too long. Limit it to $MAX_PROMPT_LENGTH characters."
         }
 
-        val model = Firebase.ai(backend = GenerativeBackend.googleAI())
+        val model = FirebaseAI.getInstance(GenerativeBackend.googleAI())
             .generativeModel(MODEL_NAME)
         val response = model.generateContent(
             "You are Echo, a helpful assistant inside the EchoChat Android app. " +

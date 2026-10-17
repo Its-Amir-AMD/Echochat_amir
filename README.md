@@ -26,12 +26,20 @@ Use Android Studio, the Android SDK matching the configured compile SDK, and the
 
 ## Build
 
-The repository currently does not include the Gradle Wrapper launch scripts. In Android Studio, open the project and sync it using the Gradle distribution declared in `gradle/wrapper/gradle-wrapper.properties`. On a machine with Gradle 9.3.1 installed, run:
+This repository includes a lightweight Gradle bootstrap launcher (rather than the binary Gradle Wrapper JAR). On first use it downloads the official Gradle 9.3.1 distribution into the user's Gradle home. A network connection, `curl` and `unzip` are required on Linux/macOS; Windows uses PowerShell.
 
+Windows PowerShell:
+```powershell
+.\gradlew.bat testDebugUnitTest
+.\gradlew.bat assembleDebug
+.\gradlew.bat lintDebug
+```
+
+macOS/Linux:
 ```bash
-gradle test
-gradle assembleDebug
-gradle lint
+./gradlew testDebugUnitTest
+./gradlew assembleDebug
+./gradlew lintDebug
 ```
 
 The debug APK is normally generated at `app/build/outputs/apk/debug/app-debug.apk`.

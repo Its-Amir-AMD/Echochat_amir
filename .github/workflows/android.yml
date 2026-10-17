@@ -4,30 +4,45 @@ on:
   push:
     branches: [main, "fix/**", "feature/**"]
   pull_request:
-    branches: [main]
   workflow_dispatch:
 
 permissions:
   contents: read
 
+concurrency:
+  group: android-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test-and-build:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
+
       - name: Set up JDK
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: "17"
+          java-version: "21"
+
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: '9.3.1'
+
       - name: Run unit tests
-        run: gradle test
+        run: bash ./gradlew --no-daemon testDebugUnitTest
+
       - name: Build debug APK
-        run: gradle assembleDebug
+        run: bash ./gradlew --no-daemon assembleDebug
+
       - name: Run Android lint
-        run: gradle lint
+        run: bash ./gradlew --no-daemon lintDebug
+
+      - name: Upload debug APK
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: EchoChat-debug
+          path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error

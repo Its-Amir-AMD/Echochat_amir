@@ -50,9 +50,13 @@ android {
       signingConfig = signingConfigs.getByName("release")
     }
     debug {
-      // Do not remove or modify this signingConfig assignment. It is necessary for Android apps in
-      // AI Studio.
-      signingConfig = signingConfigs.getByName("debugConfig")
+      // Prefer the AI Studio key when it exists; otherwise use Android Gradle Plugin's standard
+      // debug key so a fresh checkout can build without a local, ignored keystore file.
+      signingConfig = if (file("${rootDir}/debug.keystore").exists()) {
+        signingConfigs.getByName("debugConfig")
+      } else {
+        signingConfigs.getByName("debug")
+      }
     }
   }
   compileOptions {

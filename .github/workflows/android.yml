@@ -30,14 +30,8 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      - name: Run unit tests
-        run: bash ./gradlew --no-daemon testDebugUnitTest
-
-      - name: Build debug APK
-        run: bash ./gradlew --no-daemon assembleDebug
-
-      - name: Run Android lint
-        run: bash ./gradlew --no-daemon lintDebug
+      - name: Run unit tests, lint and debug build
+        run: bash ./gradlew --no-daemon testDebugUnitTest lintDebug assembleDebug
 
       - name: Upload debug APK
         if: success()

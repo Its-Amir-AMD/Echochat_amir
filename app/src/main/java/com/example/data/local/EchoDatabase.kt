@@ -4,8 +4,10 @@ import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.example.data.model.ChannelEntity
+import com.example.data.model.CommentEntity
 import com.example.data.model.MessageEntity
 import com.example.data.model.PostEntity
 import com.example.data.model.StoryEntity
@@ -21,15 +23,55 @@ import java.util.UUID
         MessageEntity::class,
         UserProfileEntity::class,
         PostEntity::class,
-        StoryEntity::class
+        StoryEntity::class,
+        CommentEntity::class
     ],
-    version = 2,
+    version = 3,
     exportSchema = false
 )
 abstract class EchoDatabase : RoomDatabase() {
     abstract fun chatDao(): EchoChatDao
 
     companion object {
+        private val MIGRATION_1_2 = object : Migration(1, 2) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """CREATE TABLE IF NOT EXISTS social_posts (
+                        id TEXT NOT NULL, authorId TEXT NOT NULL, authorName TEXT NOT NULL,
+                        authorRole TEXT NOT NULL, authorAvatarColor INTEGER NOT NULL,
+                        content TEXT NOT NULL, tags TEXT NOT NULL, category TEXT NOT NULL,
+                        likesCount INTEGER NOT NULL, commentsCount INTEGER NOT NULL,
+                        sharesCount INTEGER NOT NULL, isLiked INTEGER NOT NULL,
+                        isBookmarked INTEGER NOT NULL, timestamp INTEGER NOT NULL,
+                        cardColor INTEGER NOT NULL, PRIMARY KEY(id)
+                    )""".trimIndent()
+                )
+                db.execSQL(
+                    """CREATE TABLE IF NOT EXISTS user_stories (
+                        id TEXT NOT NULL, authorName TEXT NOT NULL,
+                        authorAvatarColor INTEGER NOT NULL, storyTitle TEXT NOT NULL,
+                        isViewed INTEGER NOT NULL, timestamp INTEGER NOT NULL,
+                        PRIMARY KEY(id)
+                    )""".trimIndent()
+                )
+            }
+        }
+
+        private val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """CREATE TABLE IF NOT EXISTS post_comments (
+                        id TEXT NOT NULL, postId TEXT NOT NULL, authorId TEXT NOT NULL,
+                        authorName TEXT NOT NULL, content TEXT NOT NULL, timestamp INTEGER NOT NULL,
+                        PRIMARY KEY(id)
+                    )""".trimIndent()
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS index_post_comments_postId_timestamp ON post_comments(postId, timestamp)"
+                )
+            }
+        }
+
         @Volatile
         private var INSTANCE: EchoDatabase? = null
 
@@ -50,7 +92,7 @@ abstract class EchoDatabase : RoomDatabase() {
                             }
                         }
                     })
-                    .fallbackToDestructiveMigration()
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
                     .build()
                 INSTANCE = instance
                 instance
@@ -308,9 +350,9 @@ abstract class EchoDatabase : RoomDatabase() {
                     bio = "علاقه‌مند به دنیای چت، سوشال مدیا و ارتباطات هوشمند ✨",
                     avatarColor = 0xFF4F46E5,
                     languageCode = "fa",
-                    postsCount = 4,
-                    followersCount = 1250,
-                    followingCount = 340
+                    postsCount = 0,
+                    followersCount = 0,
+                    followingCount = 0
                 )
             )
         }

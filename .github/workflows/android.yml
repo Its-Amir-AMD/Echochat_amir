@@ -23,9 +23,11 @@ jobs:
           java-version: "17"
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.3.1'
       - name: Run unit tests
-        run: ./gradlew test
+        run: gradle test
       - name: Build debug APK
-        run: ./gradlew assembleDebug
+        run: gradle assembleDebug
       - name: Run Android lint
-        run: ./gradlew lint
+        run: gradle lint

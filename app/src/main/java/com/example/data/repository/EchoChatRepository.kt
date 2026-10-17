@@ -60,7 +60,7 @@ class EchoChatRepository(private val dao: EchoChatDao) {
 
     }
 
-    suspend fun setReaction    suspend fun setReaction(messageId: String, reaction: String?) {
+    suspend fun setReaction(messageId: String, reaction: String?) {
         dao.updateMessageReaction(messageId, reaction)
     }
 

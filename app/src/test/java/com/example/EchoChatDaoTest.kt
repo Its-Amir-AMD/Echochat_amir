@@ -6,6 +6,7 @@ import androidx.test.core.app.ApplicationProvider
 import com.example.data.local.EchoDatabase
 import com.example.data.model.CommentEntity
 import com.example.data.model.PostEntity
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -79,9 +80,7 @@ class EchoChatDaoTest {
 
             val post = requireNotNull(dao.getPostById("post-comment-test"))
             assertEquals(1, post.commentsCount)
-            assertEquals(1, dao.getCommentsForPost("post-comment-test").let {
-                kotlinx.coroutines.flow.first(it).size
-            })
+            assertEquals(1, dao.getCommentsForPost("post-comment-test").first().size)
         } finally {
             database.close()
         }

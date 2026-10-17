@@ -2,6 +2,7 @@ package com.example.data.model
 
 import androidx.room.Entity
 import androidx.room.PrimaryKey
+import androidx.room.Index
 
 @Entity(tableName = "channels")
 data class ChannelEntity(
@@ -42,9 +43,9 @@ data class UserProfileEntity(
     val avatarColor: Long = 0xFF4F46E5,
     val languageCode: String = "fa",
     val isDarkMode: Boolean? = null,
-    val postsCount: Int = 8,
-    val followersCount: Int = 1420,
-    val followingCount: Int = 385
+    val postsCount: Int = 0,
+    val followersCount: Int = 0,
+    val followingCount: Int = 0
 )
 
 @Entity(tableName = "social_posts")
@@ -64,6 +65,16 @@ data class PostEntity(
     val isBookmarked: Boolean = false,
     val timestamp: Long = System.currentTimeMillis(),
     val cardColor: Long = 0xFF1E293B
+)
+
+@Entity(tableName = "post_comments", indices = [Index(value = ["postId", "timestamp"])])
+data class CommentEntity(
+    @PrimaryKey val id: String,
+    val postId: String,
+    val authorId: String,
+    val authorName: String,
+    val content: String,
+    val timestamp: Long = System.currentTimeMillis()
 )
 
 @Entity(tableName = "user_stories")

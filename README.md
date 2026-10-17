@@ -66,7 +66,7 @@ Firebase AI requests are real model requests; the application does not silently 
 
 ## Data and migration notes
 
-Room schema version 3 includes the local posts, stories, and comments tables. Migrations are explicit; destructive fallback migration is not enabled. Keep any future schema changes paired with a migration and an appropriate database migration test.
+Room schema version 4 includes the local posts, stories, comments, and query indexes. Explicit migrations preserve legacy profile fields and avoid destructive fallback migration. Keep future schema changes paired with a migration and a database migration test.
 
 ## Security and release readiness
 

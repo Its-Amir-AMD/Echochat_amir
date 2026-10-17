@@ -10,9 +10,12 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -26,6 +29,7 @@ import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -53,6 +57,9 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.data.model.PostEntity
+import com.example.ui.EchoChatViewModel
 import com.example.data.model.UserProfileEntity
 import com.example.util.AppLanguage
 import com.example.util.EchoStrings
@@ -389,4 +396,78 @@ fun ProfileAndSettingsSheet(
             Spacer(modifier = Modifier.height(24.dp))
         }
     }
+}
+
+
+@Composable
+fun CommentsDialog(
+    post: PostEntity,
+    viewModel: EchoChatViewModel,
+    language: AppLanguage,
+    onDismiss: () -> Unit
+) {
+    val comments by viewModel.commentsForPost(post.id).collectAsStateWithLifecycle(initialValue = emptyList())
+    var draft by remember(post.id) { mutableStateOf("") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(EchoStrings.get("comments_title", language)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(
+                    text = post.authorName,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                if (comments.isEmpty()) {
+                    Text(
+                        text = EchoStrings.get("no_comments", language),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.heightIn(max = 240.dp),
+                        contentPadding = PaddingValues(vertical = 4.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        items(comments, key = { it.id }) { comment ->
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f), RoundedCornerShape(10.dp))
+                                    .padding(10.dp),
+                                verticalArrangement = Arrangement.spacedBy(3.dp)
+                            ) {
+                                Text(comment.authorName, style = MaterialTheme.typography.labelMedium)
+                                Text(comment.content, style = MaterialTheme.typography.bodyMedium)
+                            }
+                        }
+                    }
+                }
+                OutlinedTextField(
+                    value = draft,
+                    onValueChange = { if (it.length <= 2_000) draft = it },
+                    placeholder = { Text(EchoStrings.get("comment_hint", language)) },
+                    modifier = Modifier.fillMaxWidth(),
+                    maxLines = 4
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                enabled = draft.isNotBlank(),
+                onClick = {
+                    viewModel.createComment(post.id, draft)
+                    draft = ""
+                }
+            ) {
+                Text(EchoStrings.get("send_comment", language))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(EchoStrings.get("cancel", language))
+            }
+        }
+    )
 }

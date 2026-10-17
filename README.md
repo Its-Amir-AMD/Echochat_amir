@@ -26,18 +26,12 @@ Use Android Studio, the Android SDK matching the configured compile SDK, and the
 
 ## Build
 
-Windows PowerShell:
-```powershell
-.\gradlew.bat test
-.\gradlew.bat assembleDebug
-.\gradlew.bat lint
-```
+The repository currently does not include the Gradle Wrapper launch scripts. In Android Studio, open the project and sync it using the Gradle distribution declared in `gradle/wrapper/gradle-wrapper.properties`. On a machine with Gradle 9.3.1 installed, run:
 
-macOS/Linux:
 ```bash
-./gradlew test
-./gradlew assembleDebug
-./gradlew lint
+gradle test
+gradle assembleDebug
+gradle lint
 ```
 
 The debug APK is normally generated at `app/build/outputs/apk/debug/app-debug.apk`.

@@ -35,6 +35,8 @@ abstract class EchoDatabase : RoomDatabase() {
     companion object {
         private val MIGRATION_1_2 = object : Migration(1, 2) {
             override fun migrate(db: SupportSQLiteDatabase) {
+                // Version 2 added social tables and profile counters. Rebuild the profile
+                // table to add non-null counters without changing its existing rows.
                 db.execSQL("""
                     CREATE TABLE IF NOT EXISTS social_posts (
                         id TEXT NOT NULL PRIMARY KEY,
@@ -52,6 +54,29 @@ abstract class EchoDatabase : RoomDatabase() {
                         isViewed INTEGER NOT NULL, timestamp INTEGER NOT NULL
                     )
                 """.trimIndent())
+                db.execSQL("""
+                    CREATE TABLE user_profile_new (
+                        userId TEXT NOT NULL PRIMARY KEY,
+                        displayName TEXT NOT NULL,
+                        bio TEXT NOT NULL,
+                        avatarColor INTEGER NOT NULL,
+                        languageCode TEXT NOT NULL,
+                        isDarkMode INTEGER,
+                        postsCount INTEGER NOT NULL,
+                        followersCount INTEGER NOT NULL,
+                        followingCount INTEGER NOT NULL
+                    )
+                """.trimIndent())
+                db.execSQL("""
+                    INSERT INTO user_profile_new (
+                        userId, displayName, bio, avatarColor, languageCode, isDarkMode,
+                        postsCount, followersCount, followingCount
+                    )
+                    SELECT userId, displayName, bio, avatarColor, languageCode, isDarkMode, 0, 0, 0
+                    FROM user_profile
+                """.trimIndent())
+                db.execSQL("DROP TABLE user_profile")
+                db.execSQL("ALTER TABLE user_profile_new RENAME TO user_profile")
             }
         }
 

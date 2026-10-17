@@ -146,7 +146,7 @@ fun ExploreScreen(
                             }
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
-                                text = "استوری من",
+                                text = EchoStrings.get("my_story", language),
                                 fontSize = 11.sp,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis

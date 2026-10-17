@@ -115,6 +115,13 @@ class EchoChatViewModel(application: Application) : AndroidViewModel(application
         .flatMapLatest { id -> repository.getMessagesForChannel(id) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    // Search locally stored messages across all channels.
+    val searchedMessages: StateFlow<List<MessageEntity>> = _searchQuery
+        .flatMapLatest { query ->
+            if (query.isBlank()) flowOf(emptyList()) else repository.searchMessages(query.trim())
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     // Typing user indicator for active channel
     val typingUser: StateFlow<String?> = combine(
         _selectedChannelId,

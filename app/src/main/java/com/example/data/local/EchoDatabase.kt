@@ -26,7 +26,7 @@ import java.util.UUID
         StoryEntity::class,
         CommentEntity::class
     ],
-    version = 3,
+    version = 4,
     exportSchema = false
 )
 abstract class EchoDatabase : RoomDatabase() {
@@ -54,6 +54,31 @@ abstract class EchoDatabase : RoomDatabase() {
                         PRIMARY KEY(id)
                     )""".trimIndent()
                 )
+                // Version 2 introduced the profile counters. Preserve profile fields
+                // while explicitly initializing legacy statistics to zero.
+                db.execSQL(
+                    """CREATE TABLE user_profile_new (
+                        userId TEXT NOT NULL PRIMARY KEY,
+                        displayName TEXT NOT NULL,
+                        bio TEXT NOT NULL,
+                        avatarColor INTEGER NOT NULL,
+                        languageCode TEXT NOT NULL,
+                        isDarkMode INTEGER,
+                        postsCount INTEGER NOT NULL,
+                        followersCount INTEGER NOT NULL,
+                        followingCount INTEGER NOT NULL
+                    )""".trimIndent()
+                )
+                db.execSQL(
+                    """INSERT INTO user_profile_new (
+                        userId, displayName, bio, avatarColor, languageCode, isDarkMode,
+                        postsCount, followersCount, followingCount
+                    )
+                    SELECT userId, displayName, bio, avatarColor, languageCode, isDarkMode, 0, 0, 0
+                    FROM user_profile""".trimIndent()
+                )
+                db.execSQL("DROP TABLE user_profile")
+                db.execSQL("ALTER TABLE user_profile_new RENAME TO user_profile")
             }
         }
 
@@ -69,6 +94,16 @@ abstract class EchoDatabase : RoomDatabase() {
                 db.execSQL(
                     "CREATE INDEX IF NOT EXISTS index_post_comments_postId_timestamp ON post_comments(postId, timestamp)"
                 )
+            }
+        }
+
+        private val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_channels_lastMessageTime ON channels(lastMessageTime)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_messages_channelId_timestamp ON messages(channelId, timestamp)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_social_posts_category_timestamp ON social_posts(category, timestamp)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_social_posts_authorId_timestamp ON social_posts(authorId, timestamp)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_user_stories_timestamp ON user_stories(timestamp)")
             }
         }
 
@@ -92,7 +127,7 @@ abstract class EchoDatabase : RoomDatabase() {
                             }
                         }
                     })
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
                     .build()
                 INSTANCE = instance
                 instance

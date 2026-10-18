@@ -142,7 +142,7 @@ class FirebaseChatBackend(
     ) {
         scope.launch {
             val mapped = documents.mapNotNull { document -> channelFromDocument(document, uid) }
-            if (mapped.isNotEmpty()) dao.insertChannels(mapped)
+            mapped.forEach { dao.insertChannel(it) }
 
             documents.forEach { document ->
                 val members = document.get("members").asStringList()
@@ -214,7 +214,7 @@ class FirebaseChatBackend(
                     val ids = messages.map { it.id }
                     if (ids.isEmpty()) dao.deleteMessagesForChannel(channelId)
                     else dao.deleteMessagesNotIn(channelId, ids)
-                    if (messages.isNotEmpty()) dao.insertMessages(messages)
+                    if (messages.isNotEmpty()) dao.upsertMessages(messages)
                 }
             }
     }
@@ -376,7 +376,10 @@ class FirebaseChatBackend(
         firestore.collection("publicProfiles").document(user.uid)
             .set(update, SetOptions.merge()).await()
         firestore.collection("users").document(user.uid)
-            .set(update, SetOptions.merge()).await()
+            .set(
+                mapOf("displayName" to safeName, "updatedAt" to update["updatedAt"]),
+                SetOptions.merge()
+            ).await()
         user.updateProfile(
             com.google.firebase.auth.UserProfileChangeRequest.Builder()
                 .setDisplayName(safeName)

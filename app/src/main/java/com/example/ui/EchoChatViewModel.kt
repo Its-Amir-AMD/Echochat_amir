@@ -93,7 +93,7 @@ class EchoChatViewModel(application: Application) : AndroidViewModel(application
     private val _selectedExploreCategory = MutableStateFlow("all")
     val selectedExploreCategory: StateFlow<String> = _selectedExploreCategory.asStateFlow()
 
-    private val _selectedChannelId = MutableStateFlow("general")
+    private val _selectedChannelId = MutableStateFlow("bot_echo")
     val selectedChannelId: StateFlow<String> = _selectedChannelId.asStateFlow()
 
     private val _currentLanguage = MutableStateFlow(AppLanguage.PERSIAN)
@@ -207,7 +207,8 @@ class EchoChatViewModel(application: Application) : AndroidViewModel(application
     fun selectChannel(channelId: String) {
         _selectedChannelId.value = channelId
         _replyingTo.value = null
-        viewModelScope.launch {
+        launchSafely {
+            repository.joinPublicChannelIfNeeded(channelId)
             repository.clearChannelUnread(channelId)
         }
     }
@@ -258,11 +259,19 @@ class EchoChatViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun createChannel(name: String, desc: String, icon: String = "forum") {
-        launchSafely { repository.createChannel(name, desc, icon) }
+        launchSafely {
+            val channel = repository.createChannel(name, desc, icon)
+            _selectedChannelId.value = channel.id
+            _currentMainTab.value = 0
+        }
     }
 
     fun startDirectMessage(recipientUid: String) {
-        launchSafely { repository.startDirectMessage(recipientUid) }
+        launchSafely {
+            val channel = repository.startDirectMessage(recipientUid)
+            _selectedChannelId.value = channel.id
+            _currentMainTab.value = 0
+        }
     }
 
     // --- Social Actions ---

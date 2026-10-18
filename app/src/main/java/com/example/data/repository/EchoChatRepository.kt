@@ -18,7 +18,8 @@ import java.util.UUID
 
 class EchoChatRepository(
     private val dao: EchoChatDao,
-    private val scope: CoroutineScope = CoroutineScope(Dispatchers.IO)
+    private val scope: CoroutineScope = CoroutineScope(Dispatchers.IO),
+    private val backend: FirebaseChatBackend? = null
 ) {
     val allChannels: Flow<List<ChannelEntity>> = dao.getAllChannels()
     val userProfile: Flow<UserProfileEntity?> = dao.getUserProfile()
@@ -45,29 +46,39 @@ class EchoChatRepository(
         replyToId: String? = null,
         replyToSnippet: String? = null
     ) {
+        val cleanContent = content.trim()
+        require(cleanContent.isNotEmpty()) { "پیام خالی قابل ارسال نیست." }
+        require(cleanContent.length <= 4_000) { "حداکثر طول پیام ۴۰۰۰ نویسه است." }
+
         val now = System.currentTimeMillis()
         val userMsgId = UUID.randomUUID().toString()
-
+        val profile = dao.getUserProfileOnce()
         val outgoingMsg = MessageEntity(
             id = userMsgId,
             channelId = channelId,
-            senderId = "me",
-            senderName = "شما / You",
-            senderAvatarColor = 0xFF4F46E5,
-            content = content.trim(),
+            senderId = backend?.currentUserId ?: "me",
+            senderName = backend?.currentUserName
+                ?: profile?.displayName?.takeIf(String::isNotBlank)
+                ?: "شما / You",
+            senderAvatarColor = profile?.avatarColor ?: 0xFF4F46E5,
+            content = cleanContent,
             timestamp = now,
             isOutgoing = true,
-            status = "read",
+            status = if (backend != null && channelId != "bot_echo") "sending" else "read",
             replyToId = replyToId,
             replyToSnippet = replyToSnippet
         )
 
-        dao.insertMessage(outgoingMsg)
-        dao.updateChannelLastMessage(channelId, content.trim(), now)
+        // Echo AI is private, per-account history. Human conversations use Firestore
+        // as the source of truth and are written only after server-side authorization.
+        if (backend != null && channelId != "bot_echo") {
+            backend.sendMessage(outgoingMsg)
+            return
+        }
 
-        // Only the assistant channel automatically responds. Human conversations must
-        // never fabricate replies from other users.
-        triggerAssistantReply(channelId, content.trim(), userMsgId)
+        dao.insertMessage(outgoingMsg)
+        dao.updateChannelLastMessage(channelId, cleanContent, now)
+        triggerAssistantReply(channelId, cleanContent, userMsgId)
     }
 
     private fun triggerAssistantReply(channelId: String, userText: String, replyToId: String) {
@@ -121,48 +132,72 @@ class EchoChatRepository(
     }
 
     suspend fun setReaction(messageId: String, reaction: String?) {
-        dao.updateMessageReaction(messageId, reaction)
+        val message = dao.getMessageById(messageId) ?: return
+        if (backend != null && message.channelId != "bot_echo") {
+            backend.updateReaction(message.copy(reaction = reaction))
+        } else {
+            dao.updateMessageReaction(messageId, reaction)
+        }
     }
 
     suspend fun deleteMessage(messageId: String) {
-        dao.deleteMessageById(messageId)
+        val message = dao.getMessageById(messageId) ?: return
+        if (backend != null && message.channelId != "bot_echo") {
+            backend.deleteMessage(message)
+        } else {
+            dao.deleteMessageById(messageId)
+        }
+    }
+
+    suspend fun joinPublicChannelIfNeeded(channelId: String) {
+        backend?.joinPublicChannelIfNeeded(channelId)
     }
 
     suspend fun clearChat(channelId: String) {
+        val now = System.currentTimeMillis()
         dao.deleteMessagesForChannel(channelId)
-        dao.updateChannelLastMessage(channelId, "", System.currentTimeMillis())
+        dao.updateChannelHiddenBefore(channelId, now)
+        dao.updateChannelLastMessage(channelId, "", now)
     }
 
     suspend fun createChannel(name: String, description: String, iconName: String = "forum") {
-        val id = "channel_" + UUID.randomUUID().toString().take(8)
+        val cleanName = name.trim()
+        require(cleanName.isNotEmpty()) { "نام کانال را وارد کنید." }
+        require(cleanName.length <= 60) { "نام کانال نباید بیشتر از ۶۰ نویسه باشد." }
+        require(description.length <= 300) { "توضیحات کانال نباید بیشتر از ۳۰۰ نویسه باشد." }
+        val now = System.currentTimeMillis()
         val newChannel = ChannelEntity(
-            id = id,
-            name = name,
-            description = description,
+            id = "channel_" + UUID.randomUUID().toString().replace("-", "").take(16),
+            name = cleanName,
+            description = description.trim(),
             iconName = iconName,
             isDirectMessage = false,
+            lastMessage = "",
+            lastMessageTime = now,
+            createdAt = now
+        )
+        if (backend != null) backend.createPublicChannel(newChannel)
+        else dao.insertChannel(newChannel)
+    }
+
+    suspend fun startDirectMessage(recipientUid: String): ChannelEntity {
+        val cleanUid = recipientUid.trim()
+        require(cleanUid.isNotEmpty()) { "شناسه کاربری مخاطب را وارد کنید." }
+        backend?.let { return it.startDirectMessage(cleanUid) }
+        val newChannel = ChannelEntity(
+            id = "dm_" + UUID.randomUUID().toString().replace("-", "").take(16),
+            name = cleanUid,
+            description = "گفتگوی دونفره",
+            iconName = "person",
+            isDirectMessage = true,
+            peerName = cleanUid,
+            peerAvatarColor = 0xFF8B5CF6,
             lastMessage = "",
             lastMessageTime = System.currentTimeMillis(),
             createdAt = System.currentTimeMillis()
         )
         dao.insertChannel(newChannel)
-    }
-
-    suspend fun startDirectMessage(peerName: String, peerAvatarColor: Long = 0xFF8B5CF6) {
-        val id = "dm_" + UUID.randomUUID().toString().take(8)
-        val newDm = ChannelEntity(
-            id = id,
-            name = peerName,
-            description = "گفتگوی دونفره",
-            iconName = "person",
-            isDirectMessage = true,
-            peerName = peerName,
-            peerAvatarColor = peerAvatarColor,
-            lastMessage = "",
-            lastMessageTime = System.currentTimeMillis(),
-            createdAt = System.currentTimeMillis()
-        )
-        dao.insertChannel(newDm)
+        return newChannel
     }
 
     // --- Social Posts Operations ---
@@ -171,16 +206,19 @@ class EchoChatRepository(
         tags: String = "",
         category: String = "tech"
     ) {
-        require(content.isNotBlank()) { "Post content must not be empty." }
+        val cleanContent = content.trim()
+        require(cleanContent.isNotEmpty()) { "متن پست نمی‌تواند خالی باشد." }
+        require(cleanContent.length <= 4_000) { "حداکثر طول پست ۴۰۰۰ نویسه است." }
         val profile = dao.getUserProfileOnce()
         val newPost = PostEntity(
-            id = "post_" + UUID.randomUUID().toString().take(8),
-            authorId = "me",
-            authorName = profile?.displayName?.takeIf { it.isNotBlank() } ?: "Echo User",
+            id = "post_" + UUID.randomUUID().toString().replace("-", ""),
+            authorId = backend?.currentUserId ?: "me",
+            authorName = backend?.currentUserName
+                ?: profile?.displayName?.takeIf { it.isNotBlank() } ?: "Echo User",
             authorRole = "عضو اکو / Echo Member",
             authorAvatarColor = profile?.avatarColor ?: 0xFF4F46E5,
-            content = content.trim(),
-            tags = tags.trim(),
+            content = cleanContent,
+            tags = tags.trim().take(300),
             category = category,
             likesCount = 0,
             commentsCount = 0,
@@ -190,57 +228,65 @@ class EchoChatRepository(
             timestamp = System.currentTimeMillis(),
             cardColor = 0xFF1E293B
         )
-        dao.insertPost(newPost)
+        if (backend != null) backend.createPost(newPost) else dao.insertPost(newPost)
     }
 
     suspend fun toggleLikePost(postId: String, currentLiked: Boolean, currentCount: Int) {
-        // Use persisted state because UI values can be stale after rapid taps.
-        dao.togglePostLike(postId)
+        // The cloud transaction reads server state, avoiding stale UI values after rapid taps.
+        if (backend != null) backend.togglePostLike(postId) else dao.togglePostLike(postId)
     }
 
-    fun getCommentsForPost(postId: String): kotlinx.coroutines.flow.Flow<List<CommentEntity>> =
-        dao.getCommentsForPost(postId)
+    fun getCommentsForPost(postId: String): kotlinx.coroutines.flow.Flow<List<CommentEntity>> {
+        backend?.observeCommentsForPost(postId)
+        return dao.getCommentsForPost(postId)
+    }
+
+    fun stopObservingCommentsForPost(postId: String) {
+        backend?.stopObservingCommentsForPost(postId)
+    }
 
     suspend fun createComment(postId: String, content: String) {
         val trimmed = content.trim()
         if (trimmed.isEmpty()) return
-        require(trimmed.length <= 2_000) { "Comment is too long." }
+        require(trimmed.length <= 2_000) { "حداکثر طول دیدگاه ۲۰۰۰ نویسه است." }
         val profile = dao.getUserProfileOnce()
-        dao.insertCommentAndIncrementCount(
-            CommentEntity(
-                id = UUID.randomUUID().toString(),
-                postId = postId,
-                authorId = "me",
-                authorName = profile?.displayName?.takeIf { it.isNotBlank() } ?: "Echo User",
-                content = trimmed,
-                timestamp = System.currentTimeMillis()
-            )
+        val comment = CommentEntity(
+            id = UUID.randomUUID().toString(),
+            postId = postId,
+            authorId = backend?.currentUserId ?: "me",
+            authorName = backend?.currentUserName
+                ?: profile?.displayName?.takeIf { it.isNotBlank() } ?: "Echo User",
+            content = trimmed,
+            timestamp = System.currentTimeMillis()
         )
+        if (backend != null) backend.createComment(postId, comment)
+        else dao.insertCommentAndIncrementCount(comment)
     }
 
     suspend fun createStory(title: String) {
         val trimmed = title.trim()
         if (trimmed.isEmpty()) return
-        require(trimmed.length <= 500) { "Story text is too long." }
+        require(trimmed.length <= 500) { "حداکثر طول استوری ۵۰۰ نویسه است." }
         val profile = dao.getUserProfileOnce()
-        dao.insertStory(
-            StoryEntity(
-                id = "story_" + UUID.randomUUID().toString().take(12),
-                authorName = profile?.displayName?.takeIf { it.isNotBlank() } ?: "Echo User",
-                authorAvatarColor = profile?.avatarColor ?: 0xFF4F46E5,
-                storyTitle = trimmed,
-                isViewed = true,
-                timestamp = System.currentTimeMillis()
-            )
+        val story = StoryEntity(
+            id = "story_" + UUID.randomUUID().toString().replace("-", ""),
+            authorId = backend?.currentUserId ?: "me",
+            authorName = backend?.currentUserName
+                ?: profile?.displayName?.takeIf { it.isNotBlank() } ?: "Echo User",
+            authorAvatarColor = profile?.avatarColor ?: 0xFF4F46E5,
+            storyTitle = trimmed,
+            isViewed = true,
+            timestamp = System.currentTimeMillis()
         )
+        if (backend != null) backend.createStory(story) else dao.insertStory(story)
     }
 
     suspend fun toggleBookmarkPost(postId: String, currentBookmarked: Boolean) {
-        dao.updatePostBookmark(postId, !currentBookmarked)
+        if (backend != null) backend.togglePostBookmark(postId) else dao.togglePostBookmark(postId)
     }
 
     suspend fun deletePost(postId: String) {
-        dao.deletePost(postId)
+        if (backend != null) backend.deletePost(postId) else dao.deletePost(postId)
     }
 
     suspend fun markStoryViewed(storyId: String) {
@@ -254,6 +300,7 @@ class EchoChatRepository(
         languageCode: String,
         isDarkMode: Boolean?
     ) {
+        backend?.updatePublicProfile(displayName, avatarColor)
         val existing = dao.getUserProfileOnce() ?: UserProfileEntity()
         dao.insertOrUpdateProfile(
             existing.copy(

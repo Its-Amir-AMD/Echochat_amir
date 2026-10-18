@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -131,6 +132,8 @@ fun MainScreen(
     val replyingTo by viewModel.replyingTo.collectAsStateWithLifecycle()
     val typingUser by viewModel.typingUser.collectAsStateWithLifecycle()
     val userProfile by viewModel.userProfile.collectAsStateWithLifecycle()
+    val operationError by viewModel.operationError.collectAsStateWithLifecycle()
+    val lastMessageSentEvent by viewModel.lastMessageSentEvent.collectAsStateWithLifecycle()
 
     // Social & Explore state
     val currentMainTab by viewModel.currentMainTab.collectAsStateWithLifecycle()
@@ -151,6 +154,11 @@ fun MainScreen(
 
     // For compact screens, whether we are currently viewing the chat room
     var isViewingChatRoomOnCompact by remember { mutableStateOf(false) }
+
+    LaunchedEffect(lastMessageSentEvent?.first) {
+        val sentEvent = lastMessageSentEvent
+        if (sentEvent != null && inputText.trim() == sentEvent.second) inputText = ""
+    }
 
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val coroutineScope = rememberCoroutineScope()
@@ -305,10 +313,7 @@ fun MainScreen(
                                         replyingTo = replyingTo,
                                         language = currentLanguage,
                                         onTextChanged = { inputText = it },
-                                        onSendMessage = {
-                                            viewModel.sendMessage(inputText)
-                                            inputText = ""
-                                        },
+                                        onSendMessage = { viewModel.sendMessage(inputText) },
                                         onReply = { viewModel.setReplyingTo(it) },
                                         onCancelReply = { viewModel.setReplyingTo(null) },
                                         onDelete = { viewModel.deleteMessage(it) },
@@ -351,6 +356,8 @@ fun MainScreen(
                                 onToggleLanguage = { viewModel.toggleLanguage() },
                                 onToggleTheme = { viewModel.toggleTheme() },
                                 onClearChat = { viewModel.clearChat() },
+                                accountId = viewModel.currentUserId,
+                                onSignOut = { viewModel.signOut() },
                                 onLikePost = { id, liked, count -> viewModel.toggleLikePost(id, liked, count) },
                                 onBookmarkPost = { id, bookmarked -> viewModel.toggleBookmarkPost(id, bookmarked) },
                                 onCommentsClick = { selectedPostForComments = it }
@@ -390,10 +397,7 @@ fun MainScreen(
                                         replyingTo = replyingTo,
                                         language = currentLanguage,
                                         onTextChanged = { inputText = it },
-                                        onSendMessage = {
-                                            viewModel.sendMessage(inputText)
-                                            inputText = ""
-                                        },
+                                        onSendMessage = { viewModel.sendMessage(inputText) },
                                         onReply = { viewModel.setReplyingTo(it) },
                                         onCancelReply = { viewModel.setReplyingTo(null) },
                                         onDelete = { viewModel.deleteMessage(it) },
@@ -455,6 +459,8 @@ fun MainScreen(
                                 onToggleLanguage = { viewModel.toggleLanguage() },
                                 onToggleTheme = { viewModel.toggleTheme() },
                                 onClearChat = { viewModel.clearChat() },
+                                accountId = viewModel.currentUserId,
+                                onSignOut = { viewModel.signOut() },
                                 onLikePost = { id, liked, count -> viewModel.toggleLikePost(id, liked, count) },
                                 onBookmarkPost = { id, bookmarked -> viewModel.toggleBookmarkPost(id, bookmarked) },
                                 onCommentsClick = { selectedPostForComments = it }
@@ -567,12 +573,28 @@ fun MainScreen(
         )
     }
 
+    operationError?.let { error ->
+        AlertDialog(
+            onDismissRequest = { viewModel.clearOperationError() },
+            title = { Text(EchoStrings.get("operation_failed", currentLanguage)) },
+            text = { Text(error) },
+            confirmButton = {
+                TextButton(onClick = { viewModel.clearOperationError() }) {
+                    Text(EchoStrings.get("close", currentLanguage))
+                }
+            }
+        )
+    }
+
     selectedPostForComments?.let { post ->
         CommentsDialog(
             post = post,
             viewModel = viewModel,
             language = currentLanguage,
-            onDismiss = { selectedPostForComments = null }
+            onDismiss = {
+                viewModel.stopObservingCommentsForPost(post.id)
+                selectedPostForComments = null
+            }
         )
     }
 }
@@ -942,6 +964,7 @@ fun ChatRoomContent(
         modifier = modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
+            .windowInsetsPadding(WindowInsets.ime)
     ) {
         // Channel Info Header Bar
         if (activeChannel != null) {

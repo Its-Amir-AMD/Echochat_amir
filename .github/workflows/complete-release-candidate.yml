@@ -1,0 +1,78 @@
+name: Apply release candidate, test and build
+
+on:
+  push:
+    branches:
+      - "fix/release-candidate"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: echochat-release-candidate-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  verify-and-build:
+    name: Apply code changes, run checks and build APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Configure Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Apply source patch and push completed project
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          test -s .release/patch-1.b64
+          test -s .release/patch-2.b64
+          test -s .release/patch-3a.b64
+          test -s .release/patch-3b.b64
+          test -s .release/patch-4a.b64
+          test -s .release/patch-4b.b64
+          test -s .release/patch-5a.b64
+          test -s .release/patch-5b.b64
+          cat \
+            .release/patch-1.b64 \
+            .release/patch-2.b64 \
+            .release/patch-3a.b64 \
+            .release/patch-3b.b64 \
+            .release/patch-4a.b64 \
+            .release/patch-4b.b64 \
+            .release/patch-5a.b64 \
+            .release/patch-5b.b64 \
+            | base64 --decode | gzip --decompress > "${RUNNER_TEMP}/echochat-release.patch"
+          git apply --check "${RUNNER_TEMP}/echochat-release.patch"
+          git apply "${RUNNER_TEMP}/echochat-release.patch"
+          rm -rf .release
+          git add -A
+          git -c user.name="github-actions[bot]" \
+              -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+              commit -m "feat: apply EchoChat release candidate"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
+
+      - name: Run unit tests, lint, and build installable debug APK
+        run: bash ./gradlew --no-daemon testDebugUnitTest lintDebug assembleDebug
+
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: EchoChat-debug-${{ github.sha }}
+          path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14

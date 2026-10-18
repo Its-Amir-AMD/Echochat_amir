@@ -390,7 +390,7 @@ fun MessageInputBar(
         ) {
             OutlinedTextField(
                 value = inputText,
-                onValueChange = onTextChanged,
+                onValueChange = { onTextChanged(it.take(4_000)) },
                 placeholder = {
                     Text(
                         text = EchoStrings.get("send_hint", language),

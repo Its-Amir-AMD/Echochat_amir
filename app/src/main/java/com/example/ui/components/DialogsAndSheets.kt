@@ -30,7 +30,6 @@ import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -164,16 +163,9 @@ fun CreateChannelDialog(
 fun StartDirectMessageDialog(
     language: AppLanguage,
     onDismiss: () -> Unit,
-    onStartChat: (peerName: String) -> Unit
+    onStartChat: (recipientUid: String) -> Unit
 ) {
-    var name by remember { mutableStateOf("") }
-    val suggestedContacts = listOf(
-        "سارا احمدی (طراح)",
-        "علی راد (کاتلین)",
-        "رضا کاظمی (بک‌اند)",
-        "مونا فرهمند (مدیر محصول)",
-        "دستیار هوشمند اکو"
-    )
+    var recipientUid by remember { mutableStateOf("") }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -185,61 +177,39 @@ fun StartDirectMessageDialog(
         },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(
+                    text = if (language == AppLanguage.PERSIAN)
+                        "برای شروع گفت‌وگوی واقعی، شناسهٔ حساب مخاطب را وارد کنید."
+                    else
+                        "Enter the recipient's account ID to start a real conversation.",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontSize = 13.sp
+                )
                 OutlinedTextField(
-                    value = name,
-                    onValueChange = { name = it },
-                    label = { Text("نام مخاطب / Contact Name") },
+                    value = recipientUid,
+                    onValueChange = { recipientUid = it.trim().take(128) },
+                    label = {
+                        Text(if (language == AppLanguage.PERSIAN) "شناسهٔ کاربری مخاطب" else "Recipient user ID")
+                    },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true
                 )
-
-                Text(
-                    text = "مخاطبین پیشنهادی / Suggested:",
-                    fontSize = 12.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    suggestedContacts.forEach { contact ->
-                        Card(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable {
-                                    onStartChat(contact)
-                                },
-                            colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                            )
-                        ) {
-                            Text(
-                                text = contact,
-                                modifier = Modifier.padding(10.dp),
-                                fontSize = 13.sp
-                            )
-                        }
-                    }
-                }
             }
         },
         confirmButton = {
             Button(
-                onClick = {
-                    if (name.isNotBlank()) onStartChat(name.trim())
-                },
-                enabled = name.isNotBlank()
+                onClick = { if (recipientUid.isNotBlank()) onStartChat(recipientUid.trim()) },
+                enabled = recipientUid.isNotBlank()
             ) {
                 Text(EchoStrings.get("create", language))
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text(EchoStrings.get("cancel", language))
-            }
+            TextButton(onClick = onDismiss) { Text(EchoStrings.get("cancel", language)) }
         }
     )
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProfileAndSettingsSheet(
     profile: UserProfileEntity?,

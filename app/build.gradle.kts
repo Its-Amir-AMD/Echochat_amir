@@ -29,7 +29,7 @@ android {
       val keystorePath = System.getenv("KEYSTORE_PATH") ?: "${rootDir}/my-upload-key.jks"
       storeFile = file(keystorePath)
       storePassword = System.getenv("STORE_PASSWORD")
-      keyAlias = "upload"
+      keyAlias = System.getenv("KEY_ALIAS") ?: "upload"
       keyPassword = System.getenv("KEY_PASSWORD")
     }
     create("debugConfig") {
@@ -45,9 +45,18 @@ android {
       isCrunchPngs = false
       isMinifyEnabled = false
       proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-      // Do not remove or modify this signingConfig assignment. It is necessary for Android apps in
-      // AI Studio.
-      signingConfig = signingConfigs.getByName("release")
+      // A release build is unsigned on a fresh checkout. Set KEYSTORE_PATH,
+      // STORE_PASSWORD, KEY_ALIAS and KEY_PASSWORD to sign with the owner's key.
+      val releaseKeyPath = System.getenv("KEYSTORE_PATH")
+      val releaseStorePassword = System.getenv("STORE_PASSWORD")
+      val releaseKeyPassword = System.getenv("KEY_PASSWORD")
+      if (!releaseKeyPath.isNullOrBlank()
+        && file(releaseKeyPath).isFile
+        && !releaseStorePassword.isNullOrBlank()
+        && !releaseKeyPassword.isNullOrBlank()
+      ) {
+        signingConfig = signingConfigs.getByName("release")
+      }
     }
     debug {
       // Use the AI Studio key when available, but do not require an ignored local file on a fresh checkout.

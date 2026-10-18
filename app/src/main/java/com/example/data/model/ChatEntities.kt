@@ -1,5 +1,6 @@
 package com.example.data.model
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 import androidx.room.Index
@@ -16,7 +17,8 @@ data class ChannelEntity(
     val unreadCount: Int = 0,
     val lastMessage: String = "",
     val lastMessageTime: Long = System.currentTimeMillis(),
-    val createdAt: Long = System.currentTimeMillis()
+    val createdAt: Long = System.currentTimeMillis(),
+    @ColumnInfo(defaultValue = "0") val hiddenBeforeTimestamp: Long = 0L
 )
 
 @Entity(tableName = "messages", indices = [Index(value = ["channelId", "timestamp"])])
@@ -84,5 +86,6 @@ data class StoryEntity(
     val authorAvatarColor: Long = 0xFF4F46E5,
     val storyTitle: String,
     val isViewed: Boolean = false,
-    val timestamp: Long = System.currentTimeMillis()
+    val timestamp: Long = System.currentTimeMillis(),
+    @ColumnInfo(defaultValue = "'me'") val authorId: String = "me"
 )

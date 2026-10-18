@@ -11,6 +11,8 @@ import com.example.data.model.PostEntity
 import com.example.data.model.StoryEntity
 import com.example.data.model.UserProfileEntity
 import com.example.data.repository.EchoChatRepository
+import com.example.data.repository.FirebaseChatBackend
+import com.google.firebase.auth.FirebaseAuth
 import com.example.util.AppLanguage
 import com.example.util.UserPreferences
 import kotlinx.coroutines.flow.Flow
@@ -25,16 +27,61 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.CancellationException
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class EchoChatViewModel(application: Application) : AndroidViewModel(application) {
 
-    private val repository: EchoChatRepository
+    private val firebaseAuth = FirebaseAuth.getInstance()
+    val currentUserId: String = requireNotNull(firebaseAuth.currentUser?.uid) {
+        "برای ساخت نشست برنامه ابتدا باید وارد حساب شوید."
+    }
     private val userPreferences = UserPreferences(application)
+    private lateinit var backend: FirebaseChatBackend
+    private val repository: EchoChatRepository
+
+    private val _operationError = MutableStateFlow<String?>(null)
+    val operationError: StateFlow<String?> = _operationError.asStateFlow()
+    private var sentEventId = 0L
+    private val _lastMessageSentEvent = MutableStateFlow<Pair<Long, String>?>(null)
+    val lastMessageSentEvent: StateFlow<Pair<Long, String>?> = _lastMessageSentEvent.asStateFlow()
 
     init {
-        val database = EchoDatabase.getInstance(application)
-        repository = EchoChatRepository(database.chatDao(), viewModelScope)
+        val database = EchoDatabase.getInstance(application, currentUserId)
+        backend = FirebaseChatBackend(database.chatDao(), viewModelScope)
+        repository = EchoChatRepository(database.chatDao(), viewModelScope, backend)
+        viewModelScope.launch {
+            backend.backendError.collect { message ->
+                if (!message.isNullOrBlank()) _operationError.value = message
+            }
+        }
+    }
+
+    private fun launchSafely(action: suspend () -> Unit) {
+        viewModelScope.launch {
+            try {
+                action()
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (exception: Exception) {
+                _operationError.value = exception.message
+                    ?.takeIf(String::isNotBlank)
+                    ?: "عملیات انجام نشد. اتصال اینترنت و پیکربندی Firebase را بررسی کنید."
+            }
+        }
+    }
+
+    fun clearOperationError() {
+        _operationError.value = null
+    }
+
+    fun signOut() {
+        firebaseAuth.signOut()
+    }
+
+    override fun onCleared() {
+        if (::backend.isInitialized) backend.close()
+        super.onCleared()
     }
 
     val channels: StateFlow<List<ChannelEntity>> = repository.allChannels
@@ -174,7 +221,8 @@ class EchoChatViewModel(application: Application) : AndroidViewModel(application
     fun selectChannel(channelId: String) {
         _selectedChannelId.value = channelId
         _replyingTo.value = null
-        viewModelScope.launch {
+        launchSafely {
+            repository.joinPublicChannelIfNeeded(channelId)
             repository.clearChannelUnread(channelId)
         }
     }
@@ -200,7 +248,7 @@ class EchoChatViewModel(application: Application) : AndroidViewModel(application
         if (content.isBlank()) return
         val currentChannel = _selectedChannelId.value
         val reply = _replyingTo.value
-        viewModelScope.launch {
+        launchSafely {
             repository.sendMessage(
                 channelId = currentChannel,
                 content = content,
@@ -208,78 +256,70 @@ class EchoChatViewModel(application: Application) : AndroidViewModel(application
                 replyToSnippet = reply?.content?.take(40)
             )
             _replyingTo.value = null
+            sentEventId += 1
+            _lastMessageSentEvent.value = sentEventId to content.trim()
         }
     }
 
     fun reactToMessage(messageId: String, emoji: String) {
-        viewModelScope.launch {
-            repository.setReaction(messageId, emoji)
-        }
+        launchSafely { repository.setReaction(messageId, emoji) }
     }
 
     fun deleteMessage(messageId: String) {
-        viewModelScope.launch {
-            repository.deleteMessage(messageId)
-        }
+        launchSafely { repository.deleteMessage(messageId) }
     }
 
     fun clearChat() {
         val currentChannel = _selectedChannelId.value
-        viewModelScope.launch {
-            repository.clearChat(currentChannel)
-        }
+        launchSafely { repository.clearChat(currentChannel) }
     }
 
     fun createChannel(name: String, desc: String, icon: String = "forum") {
-        viewModelScope.launch {
-            repository.createChannel(name, desc, icon)
-        }
+        launchSafely { repository.createChannel(name, desc, icon) }
     }
 
-    fun startDirectMessage(peerName: String) {
-        viewModelScope.launch {
-            repository.startDirectMessage(peerName)
+    fun startDirectMessage(recipientUid: String) {
+        launchSafely {
+            val channel = repository.startDirectMessage(recipientUid)
+            _selectedChannelId.value = channel.id
+            _currentMainTab.value = 0
         }
     }
 
     // --- Social Actions ---
     fun createPost(content: String, tags: String, category: String) {
-        viewModelScope.launch {
-            repository.createPost(content, tags, category)
-        }
+        launchSafely { repository.createPost(content, tags, category) }
     }
 
     fun toggleLikePost(postId: String, currentLiked: Boolean, currentCount: Int) {
-        viewModelScope.launch {
-            repository.toggleLikePost(postId, currentLiked, currentCount)
-        }
+        launchSafely { repository.toggleLikePost(postId, currentLiked, currentCount) }
     }
 
     fun toggleBookmarkPost(postId: String, currentBookmarked: Boolean) {
-        viewModelScope.launch {
-            repository.toggleBookmarkPost(postId, currentBookmarked)
-        }
+        launchSafely { repository.toggleBookmarkPost(postId, currentBookmarked) }
     }
 
     fun deletePost(postId: String) {
-        viewModelScope.launch {
-            repository.deletePost(postId)
-        }
+        launchSafely { repository.deletePost(postId) }
     }
 
     fun markStoryViewed(storyId: String) {
-        viewModelScope.launch { repository.markStoryViewed(storyId) }
+        launchSafely { repository.markStoryViewed(storyId) }
     }
 
     fun createStory(title: String) {
-        viewModelScope.launch { repository.createStory(title) }
+        launchSafely { repository.createStory(title) }
     }
 
     fun commentsForPost(postId: String): Flow<List<CommentEntity>> =
         repository.getCommentsForPost(postId)
 
+    fun stopObservingCommentsForPost(postId: String) {
+        repository.stopObservingCommentsForPost(postId)
+    }
+
     fun createComment(postId: String, content: String) {
-        viewModelScope.launch { repository.createComment(postId, content) }
+        launchSafely { repository.createComment(postId, content) }
     }
 
     fun toggleLanguage() {
@@ -301,7 +341,7 @@ class EchoChatViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun updateProfile(displayName: String, bio: String, avatarColor: Long) {
-        viewModelScope.launch {
+        launchSafely {
             repository.updateProfile(
                 displayName = displayName,
                 bio = bio,

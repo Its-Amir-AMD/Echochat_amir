@@ -1,82 +1,84 @@
-# EchoChat
+# EchoChat — Android
 
-EchoChat is a native Android project built with Kotlin, Jetpack Compose, Material 3, Room, coroutines, and Flow. The interface supports Persian (RTL) and English (LTR).
+EchoChat is a native Android app built with Kotlin, Jetpack Compose, Material 3, Room, coroutines and Firebase. The interface supports Persian RTL and English LTR and provides compact phone and wide-screen layouts.
 
-## Current functionality
+## Implemented in this source candidate
 
-- Responsive chat-style interface for phones and wide screens.
-- Local Room persistence for channels, messages, profiles, social posts, stories, and comments.
-- Message replies, reactions, and message deletion.
-- Local Explore feed with category filtering, likes, bookmarks, and saved posts.
-- Create and view text stories.
-- Add comments to posts.
-- Native Android Sharesheet for sharing post text.
-- Persistent language and theme preferences using DataStore.
-- Profile editing that preserves unrelated saved fields.
-- Non-destructive Room migrations for the schema versions defined in this project.
-- Firebase AI Logic integration for the Echo assistant, with a visible error message when Firebase AI is not configured or a request fails.
-- GitHub Actions workflow for unit tests, lint, and a debug APK build.
+- Email/password registration, sign-in, password reset and sign-out through Firebase Authentication.
+- A Firebase setup screen instead of a crash or a fake local-only session when Firebase configuration is missing.
+- Firestore-backed public channels, custom public-channel creation, membership-aware direct messages and real-time message synchronization.
+- Message replies, reactions and sender-only message deletion, with visible error feedback for failed cloud operations.
+- Per-account Room database caches and a local history-clear threshold so one account does not reuse another account's private message cache and cleared history is not immediately reinserted from an old snapshot.
+- Firebase profile synchronization and local language/theme preferences.
+- Echo AI through Firebase AI Logic, with an explicit unavailable/error response instead of a canned answer presented as real AI output.
+- Firestore-backed Explore posts, likes, bookmarks, stories and comments at source level, plus user-scoped like/bookmark state.
+- Firestore security rules for profiles, channel access, messages/reactions and social content operations.
+- Improved responsive Compose layout, login flow, keyboard inset handling, text-length validation and error surfaces.
+- GitHub Actions workflows for test/lint/debug build checks.
 
-## Important scope and deployment note
+## Release status and scope limits
 
-The current chat and social data repositories still use the local Room database. This means human conversations, channels, posts, comments, and stories are **not yet synchronized between accounts or devices**. Firebase Authentication and Cloud Firestore are not currently wired into those flows. Do not advertise this build as a production-ready multi-user or real-time cloud messenger until authentication, remote repositories, and restrictive production Firestore rules have been implemented and tested.
+**This is a substantially improved release candidate, but it is not yet verified or approved for public-store release.** The Android build, Room migrations, security rules, Firebase-backed social operations and two-account messaging flows still require successful CI, emulator and physical-device testing.
 
-The seeded channels, sample messages, and sample feed content are local demo data. They are not actual online users or remote conversations. The app intentionally no longer fabricates replies from human participants.
+The source includes cloud synchronization for social posts/stories/comments/likes/bookmarks, but those paths have **not** been integration-tested against a real Firebase project or the Firebase Emulator. Treat them as implemented in source, not as validated production behavior. The post feed currently listens to the whole collection; paging and server-side moderation will be needed as the service grows. Each chat syncs at most the latest 500 messages. Older cloud messages remain on the server but are not loaded into the local conversation by this query.
+
+Other features not currently implemented include end-to-end encryption, push notifications, read receipts, online presence, image/file uploads, account deletion/export, user blocking/reporting and server-side abuse moderation. Local chat-history clearing hides history on this account/device; it does not delete server-side messages. Direct messages start by entering the recipient's EchoChat account ID shown on their profile.
 
 ## Requirements
 
-- Android Studio with a compatible Android SDK.
-- JDK 21 for the current Gradle/Android Gradle Plugin setup.
-- Internet access to download Gradle and Maven dependencies.
-- A Firebase project only when using Firebase AI features.
+- Android Studio with Android SDK Platform 36 (including the configured minor API level if prompted).
+- JDK 21.
+- Network access to resolve Gradle and Maven dependencies.
+- A Firebase project configured for Authentication, Cloud Firestore, App Check and Firebase AI Logic.
 
-## Build and test
+## Firebase setup
 
-On macOS or Linux:
+1. Create/select a Firebase project and register an Android app with application ID `com.aistudio.echochat.vpkzqr` (set in `app/build.gradle.kts`). Keep this ID stable after first publication.
+2. Enable **Email/Password** under Firebase Authentication.
+3. Create Cloud Firestore.
+4. Download `google-services.json` and place it at `app/google-services.json`. This private/environment-specific file is ignored by Git.
+5. Test `firestore.rules` against a Firebase Emulator first. When reviewed, publish with Firebase CLI:
+
+   ```bash
+   firebase deploy --project YOUR_FIREBASE_PROJECT_ID --only firestore:rules
+   ```
+
+   Replace the placeholder with the exact project ID and authenticate Firebase CLI against that project. Review before deploying to a database with existing data.
+6. Enable Firebase AI Logic and confirm that the model configured in the source is available for your selected provider/region. Do not embed a raw Gemini API key in the app.
+7. For debug testing, register the App Check debug token in Firebase Console. For production, register Play Integrity for the real application signing certificate and only enable enforcement after testing.
+8. Use two accounts on at least two devices/emulators to test public channels, private DMs, sign-out/account switching, social posts, likes, bookmarks, stories and comments. Confirm a non-member cannot read a private DM.
+
+## Build, test and lint
+
+Run from the project root in an environment with Android SDK and working network access:
 
 ```bash
-bash ./gradlew testDebugUnitTest
-bash ./gradlew lintDebug
-bash ./gradlew assembleDebug
+bash ./gradlew --no-daemon testDebugUnitTest
+bash ./gradlew --no-daemon lintDebug
+bash ./gradlew --no-daemon assembleDebug
 ```
 
-On Windows:
+On Windows, use `gradlew.bat` with the same tasks. The debug APK path is `app/build/outputs/apk/debug/app-debug.apk`.
 
-```bat
-gradlew.bat testDebugUnitTest
-gradlew.bat lintDebug
-gradlew.bat assembleDebug
-```
+**Build status in this handoff:** no APK/AAB was produced here. The environment could not resolve/download the Gradle distribution and does not have an Android SDK installed. Source-level checks are not a substitute for a successful Android build. Run the GitHub Actions workflows in a network-enabled environment and fix any failures before release.
 
-The debug APK is generated at:
+## Release signing
 
-`app/build/outputs/apk/debug/app-debug.apk`
+A clean checkout is configured not to require an owner's private keystore just to configure a release build; without signing credentials, any resulting release artifact will be unsigned and cannot be published as a store-ready package. For signing, set these environment variables in a private build environment:
 
-## Configure Firebase AI Logic
+- `KEYSTORE_PATH`: absolute path to the `.jks` / `.keystore` file.
+- `STORE_PASSWORD`: keystore password.
+- `KEY_ALIAS`: key alias (defaults to `upload`).
+- `KEY_PASSWORD`: key password.
 
-1. Create or select a Firebase project.
-2. Register an Android app whose package name matches the project's `applicationId` in `app/build.gradle.kts`.
-3. Enable Firebase AI Logic and select a supported Gemini Developer API model.
-4. Download the project's `google-services.json` and place it under `app/google-services.json`. Do not commit private service-account credentials or debug tokens.
-5. Register the debug App Check token shown by the Debug provider in the Firebase console for local development.
-6. For release builds, register and configure Play Integrity for the actual application signing setup.
-7. Build and run the app, then test the Echo AI conversation while online.
+Then run `bash ./gradlew --no-daemon bundleRelease`. Verify the output signature, package ID, version, Play Integrity configuration and release track before upload. Never commit keystores or passwords.
 
-Firebase AI requests are real model requests; the application does not silently replace a failed model request with a canned response. If Firebase is missing or App Check denies the request, the conversation displays an explicit configuration/error message.
+## Required before public release
 
-## Data and migration notes
-
-Room schema version 4 includes the local posts, stories, comments, and query indexes. Explicit migrations preserve legacy profile fields and avoid destructive fallback migration. Keep future schema changes paired with a migration and a database migration test.
-
-## Security and release readiness
-
-Before a public release, complete and verify at least the following:
-
-- Firebase Authentication and account/session lifecycle.
-- Firestore-backed chat and social repositories with authorization rules.
-- Real conversation membership, delivery/read receipts, and presence.
-- Production error reporting, data deletion/export policy, privacy policy, and abuse controls.
-- Integration tests against Firebase emulators and the configured App Check environment.
-- Release signing with an owner-controlled keystore and a verified Play Integrity setup.
-
-Never commit API secrets, service-account keys, signing keystores, or App Check debug tokens.
+- Get passing CI for Android build, unit tests and lint; verify Room migrations with actual upgrade tests.
+- Test Firestore rules using the Firebase Emulator and tests for authorized/unauthorized access, counters, deleted posts, private DMs and two-account synchronization.
+- Run manual tests on small phones, tablets, RTL/LTR, keyboard/IME, offline/reconnect, account switching, denied/invalid Firebase configuration and signed release builds.
+- Add post-feed pagination and an intentional retention/cleanup strategy for server content.
+- Implement an owner-reviewed account deletion/export flow, blocking/reporting, moderation and abuse controls before inviting the public.
+- Publish a privacy policy at a stable public URL, provide a monitored privacy contact, and ensure the store's Data safety declaration matches Firebase/AI data flows.
+- Finalize the app branding, legal/publisher information, signing key, versioning and store assets.

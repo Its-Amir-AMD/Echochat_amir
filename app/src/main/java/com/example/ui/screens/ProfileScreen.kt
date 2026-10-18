@@ -64,6 +64,8 @@ fun ProfileScreen(
     onLikePost: (String, Boolean, Int) -> Unit,
     onBookmarkPost: (String, Boolean) -> Unit,
     onCommentsClick: (PostEntity) -> Unit = {},
+    accountId: String = "",
+    onSignOut: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -216,6 +218,51 @@ fun ProfileScreen(
                         Icon(Icons.Default.ClearAll, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(EchoStrings.get("clear_chat", language))
+                    }
+                }
+            }
+        }
+
+        item {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 14.dp, vertical = 6.dp),
+                shape = RoundedCornerShape(18.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Text(
+                        text = if (language == AppLanguage.PERSIAN) "حساب کاربری" else "Account",
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Text(
+                        text = if (language == AppLanguage.PERSIAN)
+                            "شناسهٔ حساب برای شروع گفت‌وگوی خصوصی:"
+                        else
+                            "Account ID to start a direct message:",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    androidx.compose.foundation.text.selection.SelectionContainer {
+                        Text(
+                            text = accountId.ifBlank { "—" },
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                    OutlinedButton(
+                        onClick = onSignOut,
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = androidx.compose.material3.ButtonDefaults.outlinedButtonColors(
+                            contentColor = MaterialTheme.colorScheme.error
+                        )
+                    ) {
+                        Text(if (language == AppLanguage.PERSIAN) "خروج از حساب" else "Sign out")
                     }
                 }
             }

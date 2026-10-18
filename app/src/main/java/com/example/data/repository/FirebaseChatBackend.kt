@@ -299,6 +299,7 @@ class FirebaseChatBackend(
     }
 
     suspend fun joinPublicChannelIfNeeded(channelId: String) {
+        if (channelId == ASSISTANT_CHANNEL_ID) return
         val user = requireCurrentUser()
         val reference = firestore.collection("channels").document(channelId)
         val snapshot = reference.get().await()

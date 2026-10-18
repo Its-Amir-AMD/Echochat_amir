@@ -48,6 +48,15 @@ interface EchoChatDao {
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertMessages(messages: List<MessageEntity>)
 
+    @Query("SELECT * FROM messages WHERE id = :messageId LIMIT 1")
+    suspend fun getMessageById(messageId: String): MessageEntity?
+
+    @Query("UPDATE messages SET status = :status WHERE id = :messageId")
+    suspend fun updateMessageStatus(messageId: String, status: String)
+
+    @Query("DELETE FROM messages WHERE channelId = :channelId AND id NOT IN (:messageIds)")
+    suspend fun deleteMessagesNotIn(channelId: String, messageIds: List<String>)
+
     @Query("DELETE FROM messages WHERE id = :messageId")
     suspend fun deleteMessageById(messageId: String)
 

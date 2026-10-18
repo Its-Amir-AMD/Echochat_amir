@@ -66,7 +66,7 @@ class FirebaseChatBackend(
         publicChannelsRegistration?.remove()
         memberChannelsRegistration = null
         publicChannelsRegistration = null
-        messageRegistrations.values.forEach(ListenerRegistration::remove)
+        messageRegistrations.values.forEach { it.remove() }
         messageRegistrations.clear()
     }
 
@@ -142,7 +142,7 @@ class FirebaseChatBackend(
     ) {
         scope.launch {
             val mapped = documents.mapNotNull { document -> channelFromDocument(document, uid) }
-            if (mapped.isNotEmpty()) dao.insertChannels(mapped)
+            mapped.forEach { dao.insertChannel(it) }
 
             documents.forEach { document ->
                 val members = document.get("members").asStringList()
@@ -189,7 +189,7 @@ class FirebaseChatBackend(
             .document(channelId)
             .collection("messages")
             .orderBy("timestamp", Query.Direction.ASCENDING)
-            .limitToLast(MAX_SYNCED_MESSAGES)
+            .limitToLast(MAX_SYNCED_MESSAGES.toLong())
             .addSnapshotListener { snapshot, error ->
                 if (error != null || snapshot == null) return@addSnapshotListener
                 scope.launch {
@@ -214,7 +214,7 @@ class FirebaseChatBackend(
                     val ids = messages.map { it.id }
                     if (ids.isEmpty()) dao.deleteMessagesForChannel(channelId)
                     else dao.deleteMessagesNotIn(channelId, ids)
-                    if (messages.isNotEmpty()) dao.insertMessages(messages)
+                    if (messages.isNotEmpty()) dao.upsertMessages(messages)
                 }
             }
     }
@@ -299,6 +299,7 @@ class FirebaseChatBackend(
     }
 
     suspend fun joinPublicChannelIfNeeded(channelId: String) {
+        if (channelId == ASSISTANT_CHANNEL_ID) return
         val user = requireCurrentUser()
         val reference = firestore.collection("channels").document(channelId)
         val snapshot = reference.get().await()
@@ -375,7 +376,10 @@ class FirebaseChatBackend(
         firestore.collection("publicProfiles").document(user.uid)
             .set(update, SetOptions.merge()).await()
         firestore.collection("users").document(user.uid)
-            .set(update, SetOptions.merge()).await()
+            .set(
+                mapOf("displayName" to safeName, "updatedAt" to update["updatedAt"]),
+                SetOptions.merge()
+            ).await()
         user.updateProfile(
             com.google.firebase.auth.UserProfileChangeRequest.Builder()
                 .setDisplayName(safeName)

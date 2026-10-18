@@ -11,6 +11,8 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -20,8 +22,11 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Code
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.Forum
 import androidx.compose.material.icons.filled.Language
@@ -29,7 +34,6 @@ import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -54,6 +58,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -164,16 +170,9 @@ fun CreateChannelDialog(
 fun StartDirectMessageDialog(
     language: AppLanguage,
     onDismiss: () -> Unit,
-    onStartChat: (peerName: String) -> Unit
+    onStartChat: (recipientUid: String) -> Unit
 ) {
-    var name by remember { mutableStateOf("") }
-    val suggestedContacts = listOf(
-        "سارا احمدی (طراح)",
-        "علی راد (کاتلین)",
-        "رضا کاظمی (بک‌اند)",
-        "مونا فرهمند (مدیر محصول)",
-        "دستیار هوشمند اکو"
-    )
+    var recipientUid by remember { mutableStateOf("") }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -184,49 +183,26 @@ fun StartDirectMessageDialog(
             )
         },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(
+                    text = "برای ایجاد گفتگوی واقعی، شناسهٔ حساب Firebase مخاطب را وارد کنید. " +
+                        "مخاطب می‌تواند شناسه‌اش را از بخش پروفایل کپی کند.",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontSize = 13.sp
+                )
                 OutlinedTextField(
-                    value = name,
-                    onValueChange = { name = it },
-                    label = { Text("نام مخاطب / Contact Name") },
+                    value = recipientUid,
+                    onValueChange = { recipientUid = it.trim().take(128) },
+                    label = { Text("شناسه حساب مخاطب / User ID") },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true
                 )
-
-                Text(
-                    text = "مخاطبین پیشنهادی / Suggested:",
-                    fontSize = 12.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    suggestedContacts.forEach { contact ->
-                        Card(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable {
-                                    onStartChat(contact)
-                                },
-                            colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                            )
-                        ) {
-                            Text(
-                                text = contact,
-                                modifier = Modifier.padding(10.dp),
-                                fontSize = 13.sp
-                            )
-                        }
-                    }
-                }
             }
         },
         confirmButton = {
             Button(
-                onClick = {
-                    if (name.isNotBlank()) onStartChat(name.trim())
-                },
-                enabled = name.isNotBlank()
+                onClick = { if (recipientUid.isNotBlank()) onStartChat(recipientUid.trim()) },
+                enabled = recipientUid.isNotBlank()
             ) {
                 Text(EchoStrings.get("create", language))
             }
@@ -249,11 +225,14 @@ fun ProfileAndSettingsSheet(
     onSaveProfile: (displayName: String, bio: String, avatarColor: Long) -> Unit,
     onToggleLanguage: () -> Unit,
     onToggleTheme: () -> Unit,
-    sheetState: SheetState
+    sheetState: SheetState,
+    accountUid: String = ""
 ) {
     var displayName by remember(profile) { mutableStateOf(profile?.displayName ?: "کاربر اکو") }
     var bio by remember(profile) { mutableStateOf(profile?.bio ?: "علاقه‌مند به تکنولوژی 🚀") }
     var avatarColor by remember(profile) { mutableStateOf(profile?.avatarColor ?: 0xFF4F46E5) }
+
+    val clipboardManager = LocalClipboardManager.current
 
     val colorOptions = listOf(
         0xFF4F46E5, // Indigo
@@ -271,6 +250,9 @@ fun ProfileAndSettingsSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .imePadding()
+                .navigationBarsPadding()
                 .padding(horizontal = 20.dp, vertical = 10.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
@@ -279,6 +261,39 @@ fun ProfileAndSettingsSheet(
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold
             )
+
+            if (accountUid.isNotBlank()) {
+                Text(
+                    text = "شناسه حساب / Account ID",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        text = accountUid,
+                        modifier = Modifier.weight(1f),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 2
+                    )
+                    OutlinedButton(
+                        onClick = { clipboardManager.setText(AnnotatedString(accountUid)) }
+                    ) {
+                        Icon(Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(4.dp))
+                        Text("کپی")
+                    }
+                }
+                Text(
+                    text = "این شناسه را فقط با افرادی به اشتراک بگذارید که می‌خواهید بتوانند برایتان پیام خصوصی بسازند.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
 
             // Avatar Preview & Color Selector
             Row(

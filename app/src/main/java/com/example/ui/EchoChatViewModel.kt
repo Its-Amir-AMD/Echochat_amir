@@ -11,6 +11,8 @@ import com.example.data.model.PostEntity
 import com.example.data.model.StoryEntity
 import com.example.data.model.UserProfileEntity
 import com.example.data.repository.EchoChatRepository
+import com.example.data.repository.FirebaseChatBackend
+import com.google.firebase.auth.FirebaseAuth
 import com.example.util.AppLanguage
 import com.example.util.UserPreferences
 import kotlinx.coroutines.flow.Flow
@@ -30,11 +32,42 @@ import kotlinx.coroutines.launch
 class EchoChatViewModel(application: Application) : AndroidViewModel(application) {
 
     private val repository: EchoChatRepository
+    private val cloudBackend: FirebaseChatBackend
     private val userPreferences = UserPreferences(application)
 
+    val accountUid: String
+        get() = cloudBackend.currentUserId.orEmpty()
+
+    private val _operationError = MutableStateFlow<String?>(null)
+    val operationError: StateFlow<String?> = _operationError.asStateFlow()
+
     init {
-        val database = EchoDatabase.getInstance(application)
-        repository = EchoChatRepository(database.chatDao(), viewModelScope)
+        val uid = FirebaseAuth.getInstance().currentUser?.uid
+            ?: throw IllegalStateException("An authenticated account is required to open EchoChat.")
+        val database = EchoDatabase.getInstance(application, uid)
+        val dao = database.chatDao()
+        cloudBackend = FirebaseChatBackend(dao, viewModelScope)
+        repository = EchoChatRepository(dao, viewModelScope, cloudBackend)
+    }
+
+    private fun launchSafely(action: suspend () -> Unit) {
+        viewModelScope.launch {
+            try {
+                action()
+            } catch (exception: Exception) {
+                _operationError.value = exception.message?.take(240)
+                    ?: "عملیات انجام نشد. اتصال اینترنت را بررسی کنید."
+            }
+        }
+    }
+
+    fun dismissOperationError() {
+        _operationError.value = null
+    }
+
+    override fun onCleared() {
+        cloudBackend.close()
+        super.onCleared()
     }
 
     val channels: StateFlow<List<ChannelEntity>> = repository.allChannels
@@ -60,7 +93,7 @@ class EchoChatViewModel(application: Application) : AndroidViewModel(application
     private val _selectedExploreCategory = MutableStateFlow("all")
     val selectedExploreCategory: StateFlow<String> = _selectedExploreCategory.asStateFlow()
 
-    private val _selectedChannelId = MutableStateFlow("general")
+    private val _selectedChannelId = MutableStateFlow("bot_echo")
     val selectedChannelId: StateFlow<String> = _selectedChannelId.asStateFlow()
 
     private val _currentLanguage = MutableStateFlow(AppLanguage.PERSIAN)
@@ -174,7 +207,8 @@ class EchoChatViewModel(application: Application) : AndroidViewModel(application
     fun selectChannel(channelId: String) {
         _selectedChannelId.value = channelId
         _replyingTo.value = null
-        viewModelScope.launch {
+        launchSafely {
+            repository.joinPublicChannelIfNeeded(channelId)
             repository.clearChannelUnread(channelId)
         }
     }
@@ -200,7 +234,7 @@ class EchoChatViewModel(application: Application) : AndroidViewModel(application
         if (content.isBlank()) return
         val currentChannel = _selectedChannelId.value
         val reply = _replyingTo.value
-        viewModelScope.launch {
+        launchSafely {
             repository.sendMessage(
                 channelId = currentChannel,
                 content = content,
@@ -212,33 +246,31 @@ class EchoChatViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun reactToMessage(messageId: String, emoji: String) {
-        viewModelScope.launch {
-            repository.setReaction(messageId, emoji)
-        }
+        launchSafely { repository.setReaction(messageId, emoji) }
     }
 
     fun deleteMessage(messageId: String) {
-        viewModelScope.launch {
-            repository.deleteMessage(messageId)
-        }
+        launchSafely { repository.deleteMessage(messageId) }
     }
 
     fun clearChat() {
         val currentChannel = _selectedChannelId.value
-        viewModelScope.launch {
-            repository.clearChat(currentChannel)
-        }
+        launchSafely { repository.clearChat(currentChannel) }
     }
 
     fun createChannel(name: String, desc: String, icon: String = "forum") {
-        viewModelScope.launch {
-            repository.createChannel(name, desc, icon)
+        launchSafely {
+            val channel = repository.createChannel(name, desc, icon)
+            _selectedChannelId.value = channel.id
+            _currentMainTab.value = 0
         }
     }
 
-    fun startDirectMessage(peerName: String) {
-        viewModelScope.launch {
-            repository.startDirectMessage(peerName)
+    fun startDirectMessage(recipientUid: String) {
+        launchSafely {
+            val channel = repository.startDirectMessage(recipientUid)
+            _selectedChannelId.value = channel.id
+            _currentMainTab.value = 0
         }
     }
 
@@ -301,7 +333,7 @@ class EchoChatViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun updateProfile(displayName: String, bio: String, avatarColor: Long) {
-        viewModelScope.launch {
+        launchSafely {
             repository.updateProfile(
                 displayName = displayName,
                 bio = bio,

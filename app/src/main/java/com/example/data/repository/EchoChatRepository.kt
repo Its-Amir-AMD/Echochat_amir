@@ -18,7 +18,8 @@ import java.util.UUID
 
 class EchoChatRepository(
     private val dao: EchoChatDao,
-    private val scope: CoroutineScope = CoroutineScope(Dispatchers.IO)
+    private val scope: CoroutineScope = CoroutineScope(Dispatchers.IO),
+    private val cloudBackend: FirebaseChatBackend? = null
 ) {
     val allChannels: Flow<List<ChannelEntity>> = dao.getAllChannels()
     val userProfile: Flow<UserProfileEntity?> = dao.getUserProfile()
@@ -39,6 +40,10 @@ class EchoChatRepository(
 
     suspend fun clearChannelUnread(channelId: String) = dao.clearChannelUnread(channelId)
 
+    suspend fun joinPublicChannelIfNeeded(channelId: String) {
+        cloudBackend?.joinPublicChannelIfNeeded(channelId)
+    }
+
     suspend fun sendMessage(
         channelId: String,
         content: String,
@@ -51,8 +56,8 @@ class EchoChatRepository(
         val outgoingMsg = MessageEntity(
             id = userMsgId,
             channelId = channelId,
-            senderId = "me",
-            senderName = "شما / You",
+            senderId = if (channelId == "bot_echo") "me" else cloudBackend?.currentUserId ?: "me",
+            senderName = if (channelId == "bot_echo") "شما / You" else cloudBackend?.currentUserName ?: "You",
             senderAvatarColor = 0xFF4F46E5,
             content = content.trim(),
             timestamp = now,
@@ -65,9 +70,20 @@ class EchoChatRepository(
         dao.insertMessage(outgoingMsg)
         dao.updateChannelLastMessage(channelId, content.trim(), now)
 
-        // Only the assistant channel automatically responds. Human conversations must
-        // never fabricate replies from other users.
-        triggerAssistantReply(channelId, content.trim(), userMsgId)
+        if (channelId == "bot_echo") {
+            // The AI channel is private to this account and is intentionally local.
+            triggerAssistantReply(channelId, content.trim(), userMsgId)
+        } else {
+            // Keep an optimistic local message, then reconcile it with the server.
+            // A failed send remains visibly marked as failed instead of pretending it arrived.
+            cloudBackend?.let { backend ->
+                try {
+                    backend.sendMessage(outgoingMsg)
+                } catch (_: Exception) {
+                    dao.updateMessageStatus(userMsgId, "failed")
+                }
+            }
+        }
     }
 
     private fun triggerAssistantReply(channelId: String, userText: String, replyToId: String) {
@@ -121,10 +137,18 @@ class EchoChatRepository(
     }
 
     suspend fun setReaction(messageId: String, reaction: String?) {
+        val message = dao.getMessageById(messageId) ?: return
+        if (cloudBackend != null && message.channelId != "bot_echo") {
+            cloudBackend.updateReaction(message.copy(reaction = reaction))
+        }
         dao.updateMessageReaction(messageId, reaction)
     }
 
     suspend fun deleteMessage(messageId: String) {
+        val message = dao.getMessageById(messageId) ?: return
+        if (cloudBackend != null && message.channelId != "bot_echo") {
+            cloudBackend.deleteMessage(message)
+        }
         dao.deleteMessageById(messageId)
     }
 
@@ -133,7 +157,7 @@ class EchoChatRepository(
         dao.updateChannelLastMessage(channelId, "", System.currentTimeMillis())
     }
 
-    suspend fun createChannel(name: String, description: String, iconName: String = "forum") {
+    suspend fun createChannel(name: String, description: String, iconName: String = "forum"): ChannelEntity {
         val id = "channel_" + UUID.randomUUID().toString().take(8)
         val newChannel = ChannelEntity(
             id = id,
@@ -145,24 +169,33 @@ class EchoChatRepository(
             lastMessageTime = System.currentTimeMillis(),
             createdAt = System.currentTimeMillis()
         )
-        dao.insertChannel(newChannel)
+        if (cloudBackend != null) {
+            cloudBackend.createPublicChannel(newChannel)
+        } else {
+            dao.insertChannel(newChannel)
+        }
+        return newChannel
     }
 
-    suspend fun startDirectMessage(peerName: String, peerAvatarColor: Long = 0xFF8B5CF6) {
+    suspend fun startDirectMessage(recipientUid: String, peerAvatarColor: Long = 0xFF8B5CF6): ChannelEntity {
+        if (cloudBackend != null) {
+            return cloudBackend.startDirectMessage(recipientUid)
+        }
         val id = "dm_" + UUID.randomUUID().toString().take(8)
         val newDm = ChannelEntity(
             id = id,
-            name = peerName,
+            name = recipientUid,
             description = "گفتگوی دونفره",
             iconName = "person",
             isDirectMessage = true,
-            peerName = peerName,
+            peerName = recipientUid,
             peerAvatarColor = peerAvatarColor,
             lastMessage = "",
             lastMessageTime = System.currentTimeMillis(),
             createdAt = System.currentTimeMillis()
         )
         dao.insertChannel(newDm)
+        return newDm
     }
 
     // --- Social Posts Operations ---
@@ -255,14 +288,16 @@ class EchoChatRepository(
         isDarkMode: Boolean?
     ) {
         val existing = dao.getUserProfileOnce() ?: UserProfileEntity()
-        dao.insertOrUpdateProfile(
-            existing.copy(
-                displayName = displayName.trim().ifEmpty { existing.displayName },
-                bio = bio.trim(),
-                avatarColor = avatarColor,
-                languageCode = languageCode,
-                isDarkMode = isDarkMode
-            )
+        val updated = existing.copy(
+            displayName = displayName.trim().ifEmpty { existing.displayName },
+            bio = bio.trim(),
+            avatarColor = avatarColor,
+            languageCode = languageCode,
+            isDarkMode = isDarkMode
         )
+        dao.insertOrUpdateProfile(updated)
+        if (cloudBackend != null) {
+            runCatching { cloudBackend.updatePublicProfile(updated.displayName, updated.avatarColor) }
+        }
     }
 }

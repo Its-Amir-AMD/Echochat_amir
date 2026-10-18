@@ -74,11 +74,12 @@ fun EchoAuthScreen() {
             .background(MaterialTheme.colorScheme.background),
         contentAlignment = Alignment.Center
     ) {
+        val isCompactLayout = maxWidth < 420.dp
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = if (maxWidth < 420.dp) 16.dp else 28.dp, vertical = 28.dp),
+                .padding(horizontal = if (isCompactLayout) 16.dp else 28.dp, vertical = 28.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
@@ -93,7 +94,7 @@ fun EchoAuthScreen() {
                 elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
             ) {
                 Column(
-                    modifier = Modifier.padding(if (maxWidth < 420.dp) 22.dp else 32.dp),
+                    modifier = Modifier.padding(if (isCompactLayout) 22.dp else 32.dp),
                     verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
                     Surface(

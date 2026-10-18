@@ -107,31 +107,22 @@ abstract class EchoDatabase : RoomDatabase() {
             }
         }
 
-        @Volatile
-        private var INSTANCE: EchoDatabase? = null
+        // Each authenticated account gets its own local cache. A shared database can
+        // otherwise expose one account's conversations after another user signs in.
+        private val INSTANCES = mutableMapOf<String, EchoDatabase>()
 
-        fun getInstance(context: Context): EchoDatabase {
-            return INSTANCE ?: synchronized(this) {
-                val instance = Room.databaseBuilder(
-                    context.applicationContext,
-                    EchoDatabase::class.java,
-                    "echochat_database"
-                )
-                    .addCallback(object : Callback() {
-                        override fun onCreate(db: SupportSQLiteDatabase) {
-                            super.onCreate(db)
-                            // Populate default seed data
-                            CoroutineScope(Dispatchers.IO).launch {
-                                val dao = getInstance(context).chatDao()
-                                seedInitialData(dao)
-                            }
-                        }
-                    })
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
-                    .build()
-                INSTANCE = instance
-                instance
-            }
+        fun getInstance(context: Context, userId: String): EchoDatabase = synchronized(this) {
+            val safeId = userId.filter { it.isLetterOrDigit() || it == '_' }.take(80)
+                .ifBlank { "account" }
+            INSTANCES[safeId] ?: Room.databaseBuilder(
+                context.applicationContext,
+                EchoDatabase::class.java,
+                "echochat_$safeId.db"
+            )
+                // Do not seed fake users or sample conversations into the production app.
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+                .build()
+                .also { INSTANCES[safeId] = it }
         }
 
         private suspend fun seedInitialData(dao: EchoChatDao) {

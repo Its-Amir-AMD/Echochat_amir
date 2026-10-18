@@ -1,6 +1,5 @@
 package com.example.ai
 
-import com.google.firebase.Firebase
 import com.google.firebase.ai.FirebaseAI
 import com.google.firebase.ai.type.GenerativeBackend
 import kotlinx.coroutines.Dispatchers
@@ -19,8 +18,7 @@ class EchoAiService {
         }
 
         val model = FirebaseAI.getInstance(
-            Firebase.app,
-            GenerativeBackend.googleAI()
+            backend = GenerativeBackend.googleAI()
         ).generativeModel(MODEL_NAME)
         val response = model.generateContent(
             "You are Echo, a helpful assistant inside the EchoChat Android app. " +

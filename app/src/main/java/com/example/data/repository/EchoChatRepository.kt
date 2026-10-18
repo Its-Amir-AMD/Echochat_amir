@@ -40,6 +40,10 @@ class EchoChatRepository(
 
     suspend fun clearChannelUnread(channelId: String) = dao.clearChannelUnread(channelId)
 
+    suspend fun joinPublicChannelIfNeeded(channelId: String) {
+        cloudBackend?.joinPublicChannelIfNeeded(channelId)
+    }
+
     suspend fun sendMessage(
         channelId: String,
         content: String,
@@ -153,7 +157,7 @@ class EchoChatRepository(
         dao.updateChannelLastMessage(channelId, "", System.currentTimeMillis())
     }
 
-    suspend fun createChannel(name: String, description: String, iconName: String = "forum") {
+    suspend fun createChannel(name: String, description: String, iconName: String = "forum"): ChannelEntity {
         val id = "channel_" + UUID.randomUUID().toString().take(8)
         val newChannel = ChannelEntity(
             id = id,
@@ -170,12 +174,12 @@ class EchoChatRepository(
         } else {
             dao.insertChannel(newChannel)
         }
+        return newChannel
     }
 
-    suspend fun startDirectMessage(recipientUid: String, peerAvatarColor: Long = 0xFF8B5CF6) {
+    suspend fun startDirectMessage(recipientUid: String, peerAvatarColor: Long = 0xFF8B5CF6): ChannelEntity {
         if (cloudBackend != null) {
-            cloudBackend.startDirectMessage(recipientUid)
-            return
+            return cloudBackend.startDirectMessage(recipientUid)
         }
         val id = "dm_" + UUID.randomUUID().toString().take(8)
         val newDm = ChannelEntity(
@@ -191,6 +195,7 @@ class EchoChatRepository(
             createdAt = System.currentTimeMillis()
         )
         dao.insertChannel(newDm)
+        return newDm
     }
 
     // --- Social Posts Operations ---

@@ -16,3 +16,12 @@
 local.properties
 .env
 debug.keystore
+
+# Firebase project configuration can contain environment-specific identifiers.
+app/google-services.json
+google-services.json
+
+# Signing material must remain outside Git.
+*.jks
+*.keystore
+/my-upload-key.jks

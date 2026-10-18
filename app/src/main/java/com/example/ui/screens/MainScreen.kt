@@ -47,6 +47,7 @@ import androidx.compose.material.icons.filled.DynamicFeed
 import androidx.compose.material.icons.filled.Explore
 import androidx.compose.material.icons.filled.Forum
 import androidx.compose.material.icons.filled.Language
+import androidx.compose.material.icons.filled.Logout
 import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Person

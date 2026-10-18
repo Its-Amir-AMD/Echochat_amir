@@ -66,7 +66,7 @@ class FirebaseChatBackend(
         publicChannelsRegistration?.remove()
         memberChannelsRegistration = null
         publicChannelsRegistration = null
-        messageRegistrations.values.forEach(ListenerRegistration::remove)
+        messageRegistrations.values.forEach { it.remove() }
         messageRegistrations.clear()
     }
 
@@ -189,7 +189,7 @@ class FirebaseChatBackend(
             .document(channelId)
             .collection("messages")
             .orderBy("timestamp", Query.Direction.ASCENDING)
-            .limitToLast(MAX_SYNCED_MESSAGES)
+            .limitToLast(MAX_SYNCED_MESSAGES.toLong())
             .addSnapshotListener { snapshot, error ->
                 if (error != null || snapshot == null) return@addSnapshotListener
                 scope.launch {

@@ -115,6 +115,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun MainScreen(
     viewModel: EchoChatViewModel,
+    onSignOut: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val channels by viewModel.filteredChannels.collectAsStateWithLifecycle()
@@ -131,6 +132,8 @@ fun MainScreen(
     val replyingTo by viewModel.replyingTo.collectAsStateWithLifecycle()
     val typingUser by viewModel.typingUser.collectAsStateWithLifecycle()
     val userProfile by viewModel.userProfile.collectAsStateWithLifecycle()
+    val operationError by viewModel.operationError.collectAsStateWithLifecycle()
+    val accountUid = viewModel.accountUid
 
     // Social & Explore state
     val currentMainTab by viewModel.currentMainTab.collectAsStateWithLifecycle()
@@ -161,7 +164,10 @@ fun MainScreen(
     }
 
     BoxWithConstraints(modifier = modifier.fillMaxSize()) {
-        val isWideScreen = maxWidth >= 760.dp
+        // Reserve the two-pane layout for windows wide enough to keep both the
+        // conversation list and message area comfortable.
+        val isWideScreen = maxWidth >= 840.dp
+        val channelPanelWidth = (maxWidth * 0.32f).coerceIn(260.dp, 340.dp)
 
         Scaffold(
             topBar = {
@@ -182,7 +188,8 @@ fun MainScreen(
                     onSearchSubmit = { if (searchQuery.isNotBlank()) showMessageSearchResults = true },
                     onCloseSearch = { viewModel.toggleSearch(false) },
                     onOpenProfile = { showProfileSheet = true },
-                    onClearChat = { viewModel.clearChat() }
+                    onClearChat = { viewModel.clearChat() },
+                    onSignOut = onSignOut
                 )
             },
             bottomBar = {
@@ -271,7 +278,7 @@ fun MainScreen(
                             Row(modifier = Modifier.fillMaxSize()) {
                                 Column(
                                     modifier = Modifier
-                                        .width(320.dp)
+                                        .width(channelPanelWidth)
                                         .fillMaxHeight()
                                         .background(MaterialTheme.colorScheme.surface)
                                 ) {
@@ -482,8 +489,8 @@ fun MainScreen(
         StartDirectMessageDialog(
             language = currentLanguage,
             onDismiss = { showStartDmDialog = false },
-            onStartChat = { peerName ->
-                viewModel.startDirectMessage(peerName)
+            onStartChat = { recipientUid ->
+                viewModel.startDirectMessage(recipientUid)
                 showStartDmDialog = false
             }
         )
@@ -511,7 +518,8 @@ fun MainScreen(
             },
             onToggleLanguage = { viewModel.toggleLanguage() },
             onToggleTheme = { viewModel.toggleTheme() },
-            sheetState = sheetState
+            sheetState = sheetState,
+            accountUid = accountUid
         )
     }
 
@@ -561,6 +569,19 @@ fun MainScreen(
             },
             confirmButton = {
                 TextButton(onClick = { showMessageSearchResults = false }) {
+                    Text(EchoStrings.get("close", currentLanguage))
+                }
+            }
+        )
+    }
+
+    operationError?.let { message ->
+        AlertDialog(
+            onDismissRequest = { viewModel.dismissOperationError() },
+            title = { Text("عملیات انجام نشد / Action failed") },
+            text = { Text(message) },
+            confirmButton = {
+                TextButton(onClick = { viewModel.dismissOperationError() }) {
                     Text(EchoStrings.get("close", currentLanguage))
                 }
             }
@@ -638,7 +659,8 @@ fun EchoTopAppBar(
     onSearchSubmit: () -> Unit,
     onCloseSearch: () -> Unit,
     onOpenProfile: () -> Unit,
-    onClearChat: () -> Unit
+    onClearChat: () -> Unit,
+    onSignOut: () -> Unit = {}
 ) {
     var menuExpanded by remember { mutableStateOf(false) }
 
@@ -832,6 +854,14 @@ fun EchoTopAppBar(
                             onClick = {
                                 menuExpanded = false
                                 onClearChat()
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("خروج از حساب / Sign out") },
+                            leadingIcon = { Icon(Icons.Default.Logout, contentDescription = null) },
+                            onClick = {
+                                menuExpanded = false
+                                onSignOut()
                             }
                         )
                     }
